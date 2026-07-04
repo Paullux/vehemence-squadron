@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Vehemence Squadron icon">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#07111d"/>
+      <stop offset="1" stop-color="#02050b"/>
+    </linearGradient>
+    <linearGradient id="steel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.5" stop-color="#9fb0c2"/>
+      <stop offset="1" stop-color="#34414f"/>
+    </linearGradient>
+    <linearGradient id="teal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#9affef"/>
+      <stop offset="1" stop-color="#18b8cd"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <path d="M256 42 330 204 462 124 346 274 388 470 256 356 124 470 166 274 50 124 182 204Z" fill="#101a27"/>
+  <path d="M256 72 316 210 420 150 320 282 348 412 256 326 164 412 192 282 92 150 196 210Z" fill="url(#steel)" stroke="#e8fbff" stroke-width="10" stroke-linejoin="round"/>
+  <path d="M256 114 288 222 256 302 224 222Z" fill="url(#teal)" stroke="#efffff" stroke-width="7"/>
+  <path d="M186 218 104 184 190 284 170 368 238 300Z" fill="#2d78d7"/>
+  <path d="M326 218 408 184 322 284 342 368 274 300Z" fill="#2d78d7"/>
+</svg>

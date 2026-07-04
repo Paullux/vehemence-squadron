@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 380" role="img" aria-labelledby="title desc">
+  <title id="title">Vehemence Squadron logo</title>
+  <desc id="desc">A sharp space fighter emblem with the title Vehemence Squadron.</desc>
+  <defs>
+    <linearGradient id="steel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7fbff"/>
+      <stop offset="0.45" stop-color="#aebdcc"/>
+      <stop offset="1" stop-color="#455160"/>
+    </linearGradient>
+    <linearGradient id="teal" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8dfff0"/>
+      <stop offset="0.5" stop-color="#23d7cf"/>
+      <stop offset="1" stop-color="#0a718b"/>
+    </linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#2f78d8"/>
+      <stop offset="1" stop-color="#7dffdc"/>
+    </linearGradient>
+    <filter id="glow" x="-30%" y="-40%" width="160%" height="180%">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.05 0 0 0 0 0.95 0 0 0 0 0.85 0 0 0 0.7 0"/>
+      <feMerge>
+        <feMergeNode/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+  <rect width="1200" height="380" fill="#050914"/>
+  <path d="M72 190h1056" stroke="#173246" stroke-width="2" opacity="0.75"/>
+  <path d="M600 34 694 170 1110 112 742 226 815 344 600 266 385 344 458 226 90 112 506 170Z" fill="#111a26"/>
+  <path d="M600 56 674 172 1028 128 718 216 768 316 600 246 432 316 482 216 172 128 526 172Z" fill="url(#steel)" stroke="#d9f4ff" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M600 82 637 178 600 238 563 178Z" fill="url(#teal)" stroke="#e4ffff" stroke-width="3" filter="url(#glow)"/>
+  <path d="M526 172 385 140 482 216 438 286 560 204Z" fill="#2d75cf" opacity="0.9"/>
+  <path d="M674 172 815 140 718 216 762 286 640 204Z" fill="#2d75cf" opacity="0.9"/>
+  <path d="M396 312h408" stroke="url(#blue)" stroke-width="5" stroke-linecap="round"/>
+  <text x="600" y="302" text-anchor="middle" font-family="Agency FB, Bahnschrift, Arial Narrow, Arial, sans-serif" font-size="86" font-weight="700" letter-spacing="8" fill="#edf8ff" stroke="#08111d" stroke-width="3" paint-order="stroke">VEHEMENCE</text>
+  <text x="600" y="352" text-anchor="middle" font-family="Agency FB, Bahnschrift, Arial Narrow, Arial, sans-serif" font-size="40" font-weight="700" letter-spacing="14" fill="#75ffe7">SQUADRON</text>
+</svg>
