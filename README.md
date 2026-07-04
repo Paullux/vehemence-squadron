@@ -51,8 +51,9 @@ Vidéo finale :
 
 *(GitHub ne joue pas de manière fiable les vidéos référencées par un chemin relatif
 du dépôt, même via Git LFS — la vidéo est donc servie depuis le site GitHub Pages,
-déjà en ligne. Si le lecteur ne s'affiche pas :
-[regarder la vidéo directement](https://paullux.github.io/vehemence-squadron/cinematics/intro_recruitment_ad/vehemence_squadron.mp4).)*
+déjà en ligne. Si le lecteur ne s'affiche pas, cliquer sur la miniature :)*
+
+[![Regarder la cinématique d'intro](public/cinematics/intro_recruitment_ad/miniature_video.png)](https://paullux.github.io/vehemence-squadron/cinematics/intro_recruitment_ad/vehemence_squadron.mp4)
 
 L'intro est pensée comme une fausse publicité de recrutement militaire : une propagande
 lumineuse et héroïque en surface, mais montée avec des fissures qui révèlent l'horreur
