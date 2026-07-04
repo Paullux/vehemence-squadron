@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Space Opera — Prototype</title>
+  <style>
+    html, body { margin: 0; padding: 0; overflow: hidden; background: #000; height: 100%; }
+    #app { position: fixed; inset: 0; }
+    #hud {
+      position: fixed; inset: 0; pointer-events: none;
+      font-family: "Consolas", "Lucida Console", monospace;
+      color: #7dffb0; text-shadow: 0 0 6px rgba(60, 255, 140, .8);
+      user-select: none;
+    }
+    #score { position: absolute; top: 18px; left: 22px; font-size: 22px; letter-spacing: 2px; }
+    #speed { position: absolute; bottom: 18px; left: 22px; font-size: 16px; letter-spacing: 1px; }
+    #hint  { position: absolute; bottom: 14px; width: 100%; text-align: center; font-size: 13px; opacity: .65; }
+    #hpwrap {
+      position: absolute; bottom: 44px; left: 50%; transform: translateX(-50%);
+      width: 300px; height: 14px; padding: 2px;
+      border: 1px solid rgba(125, 255, 176, .6); border-radius: 4px;
+      box-shadow: 0 0 8px rgba(60, 255, 140, .35);
+    }
+    #hpbar { height: 100%; width: 100%; border-radius: 2px; background: #4be08a; transition: width .15s ease-out; }
+    #hplabel { position: absolute; bottom: 62px; left: 50%; transform: translateX(-50%); font-size: 12px; letter-spacing: 3px; opacity: .8; }
+    #damage-flash {
+      position: fixed; inset: 0; pointer-events: none; opacity: 0;
+      background: radial-gradient(ellipse at center, transparent 55%, rgba(255, 40, 40, .55) 100%);
+    }
+    #gameover {
+      position: fixed; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 12px;
+      background: rgba(5, 0, 0, .45); pointer-events: none;
+    }
+    #gameover h1 { margin: 0; font-size: 56px; letter-spacing: 12px; color: #ff4444; text-shadow: 0 0 18px rgba(255, 60, 60, .9); }
+    #gameover p { margin: 0; font-size: 18px; letter-spacing: 2px; }
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="hud">
+    <div id="score">SCORE 0</div>
+    <div id="speed"></div>
+    <div id="hplabel">BOUCLIER</div>
+    <div id="hpwrap"><div id="hpbar"></div></div>
+    <div id="hint">ZQSD / Flèches ou stick gauche : piloter — ESPACE / RT / A : tirer — MAJ / LT / LB : boost</div>
+    <div id="damage-flash"></div>
+    <div id="gameover" class="hidden">
+      <h1>GAME OVER</h1>
+      <p>SCORE FINAL : <span id="final-score">0</span></p>
+      <p>ESPACE / A : recommencer</p>
+    </div>
+  </div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
