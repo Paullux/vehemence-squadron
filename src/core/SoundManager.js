@@ -54,6 +54,15 @@ const VOICE = {
 
 const KILL_LINES = ['kill1', 'kill2', 'kill3'];
 
+// Une seule voix source suffit : ces vitesses de lecture (pitch + tempo liés,
+// comme sur une bande analogique) donnent à chaque callsign une identité
+// sonore distincte sans avoir à enregistrer plusieurs comédiens.
+const CHARACTER_RATE = {
+  Renard: 0.9, // un peu plus grave et posé
+  Cobra: 1.14, // plus aigu et nerveux
+  Corbeau: 0.83, // grave, sombre — le guetteur
+};
+
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 const rand = (a, b) => a + Math.random() * (b - a);
 const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
@@ -343,7 +352,10 @@ export class SoundManager {
   // Codex/ElevenLabs n'a pas livré le fichier — voir public/audio/voice/),
   // passée dans la chaîne bandpass + saturation + bruit de fond pour l'effet
   // "tour de contrôle". Une seule réplique à la fois (comme une vraie radio).
-  async playVoiceLine(name, { volume = 1 } = {}) {
+  // `rate` : vitesse de lecture (pitch lié, comme une bande analogique) — voir
+  // CHARACTER_RATE. Une seule voix source enregistrée peut ainsi incarner
+  // tout l'escadron.
+  async playVoiceLine(name, { volume = 1, rate = 1 } = {}) {
     if (!this.enabled) return;
     const url = VOICE[name];
     if (!url) return;
@@ -354,12 +366,14 @@ export class SoundManager {
     const buffer = this.buffers.get(name);
     if (!buffer) return; // fichier pas encore livré — silence, pas d'erreur
 
+    const duration = buffer.duration / rate; // durée réelle une fois la vitesse appliquée
     const startAt = this.ctx.currentTime;
-    this.voiceBusyUntil = startAt + buffer.duration + 0.1;
+    this.voiceBusyUntil = startAt + duration + 0.1;
 
     const source = this.ctx.createBufferSource();
     const gain = this.ctx.createGain();
     source.buffer = buffer;
+    source.playbackRate.value = rate;
     gain.gain.value = volume;
     source.connect(gain);
     gain.connect(this.radioDrive);
@@ -373,24 +387,27 @@ export class SoundManager {
     noise.loop = true;
     noiseGain.gain.setValueAtTime(0, startAt);
     noiseGain.gain.linearRampToValueAtTime(0.05, startAt + 0.05);
-    noiseGain.gain.setValueAtTime(0.05, startAt + buffer.duration - 0.08);
-    noiseGain.gain.linearRampToValueAtTime(0, startAt + buffer.duration + 0.1);
+    noiseGain.gain.setValueAtTime(0.05, startAt + duration - 0.08);
+    noiseGain.gain.linearRampToValueAtTime(0, startAt + duration + 0.1);
     noise.connect(noiseGain);
     noiseGain.connect(this.radioDrive);
     noise.start(startAt);
-    noise.stop(startAt + buffer.duration + 0.15);
+    noise.stop(startAt + duration + 0.15);
   }
 
   enemyKilled() {
-    this.playVoiceLine(pick(KILL_LINES));
+    // Léger jitter de vitesse à chaque tir pour éviter l'effet "disque rayé"
+    this.playVoiceLine(pick(KILL_LINES), { rate: rand(0.96, 1.06) });
   }
 
   wingmanDown(callsign) {
-    this.playVoiceLine(`death${callsign}`);
+    this.playVoiceLine(`death${callsign}`, { rate: CHARACTER_RATE[callsign] ?? 1 });
   }
 
   lowEnergy(callsign) {
-    this.playVoiceLine(callsign ? `lowEnergy${callsign}` : 'lowEnergyPlayer');
+    this.playVoiceLine(callsign ? `lowEnergy${callsign}` : 'lowEnergyPlayer', {
+      rate: callsign ? CHARACTER_RATE[callsign] ?? 1 : 1,
+    });
   }
 
   // Bip-bip strident synthétisé (aucun fichier requis) : activé/désactivé
