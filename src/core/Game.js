@@ -141,10 +141,13 @@ export class Game {
       this.sound
     );
     this.explosions.update(dt);
-    this.environment.update(dt);
     if (!this.gameOver) this.handleCollisions();
     this.starfield.update(this.camera);
     this.updateCamera(dt);
+    // Après updateCamera : les astres suivent la position caméra la plus
+    // fraîche possible (voir Environment.update — ils ignorent volontairement
+    // la rotation de la caméra pour rester stables à l'écran).
+    this.environment.update(dt, this.camera);
     this.updateAudio();
     this.updateHud(dt);
 
