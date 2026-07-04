@@ -69,7 +69,10 @@ avancer l'histoire.
 - **Escadron Aquila** (`src/entities/Wingman.js`) : 3 ailiers PNJ sur le même chasseur,
   formation en V autour du joueur (suivi avec inertie, roulis naturel, flottement),
   tir de soutien auto sur les ennemis dans leur cône avant (leurs kills créditent le
-  score). Invulnérables pour l'instant ; les ennemis ne visent que le joueur.
+  score). **Meurent dans les mêmes conditions que le joueur** (PV/régén partagés via
+  `src/core/combat.js`) — explosion, halo éteint, arrêt du vol/tir ; les ennemis ne
+  ciblent toujours que le joueur, mais un ailier peut mourir par collision ou en
+  étant dans la trajectoire d'un tir. Callsigns façon Top Gun (voir §9).
   ⚠️ Les offsets de formation doivent rester en -Z (devant le joueur), sinon les
   ailiers passent devant la caméra de poursuite.
 - **Flotte ennemie complète en jeu** (catalogue `ENEMY_TYPES` dans
@@ -94,10 +97,29 @@ avancer l'histoire.
   soleil + géante rouge en double éclairage, Kharos-3 avec sa lune en orbite animée,
   planète océanique au loin. Un ciel de mission = une entrée dans `SYSTEMS`.
 - **Sons** (SoundManager, ajouté par Paul) : lasers joueur/ennemis, impacts bouclier
-  et blindage, explosions par gabarit.
+  et blindage, explosions par gabarit. **Alarme de bouclier critique** (<25%) :
+  bip-bip strident synthétisé en direct (oscillateur, aucun fichier requis).
+  **Répliques radio de l'escadron** : chaîne "radio militaire" appliquée en direct
+  (filtre bandpass + saturation + souffle statique procédural) sur des
+  enregistrements propres — voir §9 et `public/audio/prompts/voice_prompts.md`
+  pour le script à faire générer (Codex/ElevenLabs). Tant que les fichiers
+  `public/audio/voice/*.wav` n'existent pas, les répliques restent silencieuses
+  sans erreur (chargement paresseux, avertissement console bénin en dev).
 - Support manette Xbox (API Gamepad, mapping standard).
 
-## 8. Feuille de route
+## 9. Callsigns de l'escadron Aquila
+
+| Pilote | Callsign | Rôle |
+|---|---|---|
+| Joueur | **Lynx** | Chasseur — le plus jeune pilote encore opérationnel |
+| Ailier gauche | **Renard** | Flanc-garde |
+| Ailier droit | **Cobra** | Flanc-garde |
+| Ailier haut | **Corbeau** | Éclaireur |
+
+Réserve pour de futurs pilotes de remplacement (si un ailier meurt en mission et que
+l'escadron est renforcé) : *Frelon, Spectre, Phénix, Vipère, Bourrasque*.
+
+## 10. Feuille de route
 
 Phase "structure" (architecture, avec Fable 5) :
 1. Machine à états : menu / cinématique / vol rail / all-range / game over

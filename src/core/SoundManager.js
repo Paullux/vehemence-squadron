@@ -2,6 +2,7 @@ import { assetUrl } from './assetUrl.js';
 
 const SFX_PATH = '/audio/sfx/';
 const MUSIC_PATH = '/audio/music/';
+const VOICE_PATH = '/audio/voice/';
 
 const SFX = {
   playerLaser1: `${SFX_PATH}player_laser_teal_01.wav`,
@@ -34,11 +35,52 @@ const MUSIC = {
   victory: `${MUSIC_PATH}Victory%20Debrief.wav`,
 };
 
+// Répliques radio de l'escadron. Fichiers attendus dans public/audio/voice/
+// (voir public/audio/prompts/voice_prompts.md pour le script à donner à la
+// génération vocale) — enregistrements propres, SANS grésillement : le
+// filtre radio est appliqué en direct par playVoiceLine() ci-dessous.
+const VOICE = {
+  kill1: `${VOICE_PATH}kill_01.wav`,
+  kill2: `${VOICE_PATH}kill_02.wav`,
+  kill3: `${VOICE_PATH}kill_03.wav`,
+  deathRenard: `${VOICE_PATH}death_renard.wav`,
+  deathCobra: `${VOICE_PATH}death_cobra.wav`,
+  deathCorbeau: `${VOICE_PATH}death_corbeau.wav`,
+  lowEnergyPlayer: `${VOICE_PATH}low_energy_player.wav`,
+  lowEnergyRenard: `${VOICE_PATH}low_energy_renard.wav`,
+  lowEnergyCobra: `${VOICE_PATH}low_energy_cobra.wav`,
+  lowEnergyCorbeau: `${VOICE_PATH}low_energy_corbeau.wav`,
+};
+
+const KILL_LINES = ['kill1', 'kill2', 'kill3'];
+
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 const rand = (a, b) => a + Math.random() * (b - a);
+const pick = (arr) => arr[Math.floor(Math.random() * arr.length)];
+
+// Courbe de saturation douce (WaveShaper) — apporte le grain "haut-parleur
+// de cockpit" sur les répliques radio sans avoir besoin de fichiers dédiés.
+function makeDriveCurve(amount) {
+  const n = 44100;
+  const curve = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = (i * 2) / n - 1;
+    curve[i] = ((3 + amount) * x * 20 * (Math.PI / 180)) / (Math.PI + amount * Math.abs(x));
+  }
+  return curve;
+}
+
+// Bruit statique procédural (~2 s, bouclé) mixé sous les répliques radio.
+function makeStaticNoiseBuffer(ctx) {
+  const duration = 2;
+  const buffer = ctx.createBuffer(1, Math.floor(ctx.sampleRate * duration), ctx.sampleRate);
+  const data = buffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+  return buffer;
+}
 
 export class SoundManager {
-  constructor({ master = 0.72, sfx = 0.85, music = 0.42, engine = 0.5 } = {}) {
+  constructor({ master = 0.72, sfx = 0.85, music = 0.42, engine = 0.5, voice = 0.95 } = {}) {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     this.ctx = AudioContext ? new AudioContext() : null;
     this.enabled = !!this.ctx;
@@ -50,6 +92,8 @@ export class SoundManager {
     this.pendingLoops = new Map();
     this.lastPlayed = new Map();
     this.listener = { x: 0, y: 0, z: 0 };
+    this.voiceBusyUntil = 0;
+    this.shieldAlarm = null;
 
     if (!this.enabled) return;
 
@@ -57,16 +101,33 @@ export class SoundManager {
     this.sfxGain = this.ctx.createGain();
     this.musicGain = this.ctx.createGain();
     this.engineGain = this.ctx.createGain();
+    this.voiceGain = this.ctx.createGain();
 
     this.masterGain.gain.value = master;
     this.sfxGain.gain.value = sfx;
     this.musicGain.gain.value = music;
     this.engineGain.gain.value = engine;
+    this.voiceGain.gain.value = voice;
 
     this.sfxGain.connect(this.masterGain);
     this.musicGain.connect(this.masterGain);
     this.engineGain.connect(this.masterGain);
+    this.voiceGain.connect(this.masterGain);
     this.masterGain.connect(this.ctx.destination);
+
+    // Chaîne "radio militaire" : bande passante étroite façon haut-parleur de
+    // cockpit + légère saturation, posée sur toute réplique jouée via
+    // playVoiceLine(). Les fichiers sources doivent rester des voix propres.
+    this.radioFilter = this.ctx.createBiquadFilter();
+    this.radioFilter.type = 'bandpass';
+    this.radioFilter.frequency.value = 1900;
+    this.radioFilter.Q.value = 0.7;
+    this.radioDrive = this.ctx.createWaveShaper();
+    this.radioDrive.curve = makeDriveCurve(6);
+    this.radioDrive.connect(this.radioFilter);
+    this.radioFilter.connect(this.voiceGain);
+
+    this.staticNoiseBuffer = makeStaticNoiseBuffer(this.ctx);
 
     this._unlock = this.unlock.bind(this);
     addEventListener('pointerdown', this._unlock, { once: true });
@@ -276,5 +337,88 @@ export class SoundManager {
     const name = kind === 'big' ? 'explosionBig' : kind === 'medium' ? 'explosionMedium' : 'explosionSmall';
     const volume = kind === 'big' ? 0.82 : kind === 'medium' ? 0.62 : 0.48;
     this.playAt(name, position, { volume, detune: rand(-55, 35), minInterval: 0.04 });
+  }
+
+  // Réplique radio de l'escadron : chargement paresseux (silencieux tant que
+  // Codex/ElevenLabs n'a pas livré le fichier — voir public/audio/voice/),
+  // passée dans la chaîne bandpass + saturation + bruit de fond pour l'effet
+  // "tour de contrôle". Une seule réplique à la fois (comme une vraie radio).
+  async playVoiceLine(name, { volume = 1 } = {}) {
+    if (!this.enabled) return;
+    const url = VOICE[name];
+    if (!url) return;
+    const now = this.ctx.currentTime;
+    if (now < this.voiceBusyUntil) return; // quelqu'un parle déjà sur la fréquence
+
+    if (!this.buffers.has(name)) await this.load(name, url);
+    const buffer = this.buffers.get(name);
+    if (!buffer) return; // fichier pas encore livré — silence, pas d'erreur
+
+    const startAt = this.ctx.currentTime;
+    this.voiceBusyUntil = startAt + buffer.duration + 0.1;
+
+    const source = this.ctx.createBufferSource();
+    const gain = this.ctx.createGain();
+    source.buffer = buffer;
+    gain.gain.value = volume;
+    source.connect(gain);
+    gain.connect(this.radioDrive);
+    source.start();
+
+    // Souffle statique, présent juste avant/après la voix (façon "ouverture
+    // de fréquence"), très en retrait pour ne pas couvrir la réplique.
+    const noise = this.ctx.createBufferSource();
+    const noiseGain = this.ctx.createGain();
+    noise.buffer = this.staticNoiseBuffer;
+    noise.loop = true;
+    noiseGain.gain.setValueAtTime(0, startAt);
+    noiseGain.gain.linearRampToValueAtTime(0.05, startAt + 0.05);
+    noiseGain.gain.setValueAtTime(0.05, startAt + buffer.duration - 0.08);
+    noiseGain.gain.linearRampToValueAtTime(0, startAt + buffer.duration + 0.1);
+    noise.connect(noiseGain);
+    noiseGain.connect(this.radioDrive);
+    noise.start(startAt);
+    noise.stop(startAt + buffer.duration + 0.15);
+  }
+
+  enemyKilled() {
+    this.playVoiceLine(pick(KILL_LINES));
+  }
+
+  wingmanDown(callsign) {
+    this.playVoiceLine(`death${callsign}`);
+  }
+
+  lowEnergy(callsign) {
+    this.playVoiceLine(callsign ? `lowEnergy${callsign}` : 'lowEnergyPlayer');
+  }
+
+  // Bip-bip strident synthétisé (aucun fichier requis) : activé/désactivé
+  // en continu selon l'état du bouclier (voir Game.updateAudio).
+  updateShieldAlarm(dt, critical) {
+    if (!this.enabled) return;
+    if (critical && !this.shieldAlarm) {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.value = 1250;
+      gain.gain.value = 0;
+      osc.connect(gain);
+      gain.connect(this.sfxGain);
+      osc.start();
+      this.shieldAlarm = { osc, gain, phase: 0 };
+    }
+    if (!critical && this.shieldAlarm) {
+      const { osc, gain } = this.shieldAlarm;
+      const now = this.ctx.currentTime;
+      gain.gain.setTargetAtTime(0, now, 0.05);
+      osc.stop(now + 0.2);
+      this.shieldAlarm = null;
+    }
+    if (this.shieldAlarm) {
+      this.shieldAlarm.phase += dt;
+      const on = this.shieldAlarm.phase % 0.7 < 0.35; // beep... beep... beep...
+      this.shieldAlarm.gain.gain.setTargetAtTime(on ? 0.3 : 0, this.ctx.currentTime, 0.008);
+    }
   }
 }

@@ -16,8 +16,9 @@ const _origin = new THREE.Vector3();
  * sont appliqués par Game.handleCollisions via applyDamage().
  */
 export class Wingman {
-  constructor(scene, offset) {
+  constructor(scene, offset, callsign) {
     this.offset = new THREE.Vector3(...offset);
+    this.callsign = callsign;
     this.group = new THREE.Group();
     this.group.position.copy(this.offset); // démarre à son poste, pas sur le joueur
     this.mesh = new THREE.Group();
@@ -27,6 +28,7 @@ export class Wingman {
     this.alive = true;
     this.timeSinceDamage = REGEN_DELAY;
     this.hitFlash = 0;
+    this.lowEnergyFired = false;
 
     this.prevX = 0;
     this.prevY = 0;
@@ -66,7 +68,7 @@ export class Wingman {
     if (this.hp <= 0) this.alive = false; // Game.js déclenche l'explosion au moment de l'impact
   }
 
-  update(dt, player, targets, lasers) {
+  update(dt, player, targets, lasers, sound = null) {
     if (!this.alive) return;
 
     // Régénération du bouclier après un répit sans dégât (mêmes règles que le joueur)
@@ -76,6 +78,16 @@ export class Wingman {
     }
     if (this.hitFlash > 0) this.hitFlash = Math.max(0, this.hitFlash - dt);
     this.halo.material.opacity = 0.16 + this.hitFlash * 0.7;
+
+    // Réplique radio "bouclier faible", une seule fois par épisode critique
+    // (hystérésis : re-armée seulement après être remonté au-dessus de 60%)
+    const ratio = this.hp / MAX_HP;
+    if (ratio < 0.3 && !this.lowEnergyFired) {
+      this.lowEnergyFired = true;
+      sound?.lowEnergy(this.callsign);
+    } else if (ratio > 0.6) {
+      this.lowEnergyFired = false;
+    }
 
     const playerPos = player.group.position;
     this.phase += dt;

@@ -33,12 +33,14 @@ export class Game {
     this.sound = new SoundManager();
 
     this.ship = new PlayerShip(this.scene);
+    this.playerCallsign = 'Lynx';
     // Escadron Aquila en V : joueur au centre, flanc-gardes légèrement devant,
-    // éclaireur en pointe haute (devant = -Z, sinon ils masquent la caméra)
+    // éclaireur en pointe haute (devant = -Z, sinon ils masquent la caméra).
+    // Callsigns façon Top Gun — voir CONTEXTE.md pour le reste de la liste.
     this.wingmen = [
-      new Wingman(this.scene, [-13, 1.5, -5]),
-      new Wingman(this.scene, [13, 1.5, -5]),
-      new Wingman(this.scene, [0, 7, -13]),
+      new Wingman(this.scene, [-13, 1.5, -5], 'Renard'),
+      new Wingman(this.scene, [13, 1.5, -5], 'Cobra'),
+      new Wingman(this.scene, [0, 7, -13], 'Corbeau'),
     ];
     this.lasers = new LaserPool(this.scene);
     this.enemyLasers = new LaserPool(this.scene, { size: 32, color: 0xff3344, radius: 0.14 });
@@ -62,6 +64,7 @@ export class Game {
     this.timeSinceDamage = REGEN_DELAY;
     this.flashTimer = 0;
     this.wasBoosting = false;
+    this.lowEnergyFired = false;
 
     this.hudScore = document.getElementById('score');
     this.hudSpeed = document.getElementById('speed');
@@ -128,7 +131,7 @@ export class Game {
     }
 
     // Les ailiers volent même après la mort du joueur (ils escortent l'épave)
-    for (const w of this.wingmen) w.update(dt, this.ship, this.targets, this.lasers);
+    for (const w of this.wingmen) w.update(dt, this.ship, this.targets, this.lasers, this.sound);
 
     this.lasers.update(dt);
     this.enemyLasers.update(dt);
@@ -148,7 +151,7 @@ export class Game {
     // fraîche possible (voir Environment.update — ils ignorent volontairement
     // la rotation de la caméra pour rester stables à l'écran).
     this.environment.update(dt, this.camera);
-    this.updateAudio();
+    this.updateAudio(dt);
     this.updateHud(dt);
 
     this.renderer.render(this.scene, this.camera);
@@ -223,6 +226,7 @@ export class Game {
       this.sound.explosion('small', wingman.group.position);
       this.explosions.spawn(wingman.group.position);
       wingman.group.visible = false;
+      this.sound.wingmanDown(wingman.callsign);
     }
   }
 
@@ -248,6 +252,7 @@ export class Game {
       this.explosions.spawn(o.copy(enemy.position).add(new THREE.Vector3(6, 3, -5)));
       this.explosions.spawn(o.copy(enemy.position).add(new THREE.Vector3(-5, -2, 6)));
     }
+    if (points > 0) this.sound.enemyKilled(); // pas de réplique pour une collision suicide (0 pt)
     this.score += points;
   }
 
@@ -294,7 +299,7 @@ export class Game {
     }
   }
 
-  updateAudio() {
+  updateAudio(dt) {
     this.sound.setListener(this.camera.position);
     const boosting = this.input.boost && !this.wasBoosting && !this.gameOver;
     this.sound.updateHeroEngine({
@@ -303,6 +308,17 @@ export class Game {
       boosting,
     });
     this.wasBoosting = this.input.boost && !this.gameOver;
+
+    const ratio = this.hp / MAX_HP;
+    this.sound.updateShieldAlarm(dt, ratio < 0.25 && !this.gameOver);
+
+    // Réplique "bouclier faible", une seule fois par épisode critique
+    if (ratio < 0.3 && !this.lowEnergyFired && !this.gameOver) {
+      this.lowEnergyFired = true;
+      this.sound.lowEnergy(null);
+    } else if (ratio > 0.6) {
+      this.lowEnergyFired = false;
+    }
   }
 
   updateHud(dt) {
