@@ -1,9 +1,10 @@
 import * as THREE from 'three';
+import { assetUrl } from '../core/assetUrl.js';
 
 const loader = new THREE.TextureLoader();
 
 function loadColorTexture(url) {
-  const t = loader.load(url);
+  const t = loader.load(assetUrl(url));
   t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
@@ -30,9 +31,9 @@ export class Planet {
       metalness: 0,
     });
     if (textures.albedo) mat.map = loadColorTexture(textures.albedo);
-    if (textures.normal) mat.normalMap = loader.load(textures.normal);
+    if (textures.normal) mat.normalMap = loader.load(assetUrl(textures.normal));
     if (textures.roughness) {
-      mat.roughnessMap = loader.load(textures.roughness);
+      mat.roughnessMap = loader.load(assetUrl(textures.roughness));
       mat.roughness = 1;
     }
     if (textures.emission) {

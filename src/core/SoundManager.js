@@ -1,3 +1,5 @@
+import { assetUrl } from './assetUrl.js';
+
 const SFX_PATH = '/audio/sfx/';
 const MUSIC_PATH = '/audio/music/';
 
@@ -83,7 +85,7 @@ export class SoundManager {
     if (!this.enabled || this.buffers.has(name)) return this.buffers.get(name);
     if (this.loading.has(name)) return this.loading.get(name);
 
-    const task = fetch(url)
+    const task = fetch(assetUrl(url))
       .then((res) => {
         if (!res.ok) throw new Error(`Audio introuvable: ${url}`);
         return res.arrayBuffer();

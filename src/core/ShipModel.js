@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { assetUrl } from './assetUrl.js';
 
 const gltfLoader = new GLTFLoader();
 const texLoader = new THREE.TextureLoader();
@@ -13,7 +14,7 @@ const texLoader = new THREE.TextureLoader();
 export function loadShipModel({ url, emissiveUrl = null, length = 8, rotationY = 0 }) {
   return new Promise((resolve, reject) => {
     gltfLoader.load(
-      url,
+      assetUrl(url),
       (gltf) => {
         const model = gltf.scene;
         model.rotation.y = rotationY;
@@ -24,7 +25,7 @@ export function loadShipModel({ url, emissiveUrl = null, length = 8, rotationY =
         model.position.sub(box.getCenter(new THREE.Vector3()));
 
         if (emissiveUrl) {
-          const emissive = texLoader.load(emissiveUrl);
+          const emissive = texLoader.load(assetUrl(emissiveUrl));
           emissive.flipY = false; // les UV glTF ne sont pas retournés
           emissive.colorSpace = THREE.SRGBColorSpace;
           model.traverse((o) => {

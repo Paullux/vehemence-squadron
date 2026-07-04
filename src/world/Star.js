@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { makeHaloTexture } from '../core/halo.js';
+import { assetUrl } from '../core/assetUrl.js';
 
 const loader = new THREE.TextureLoader();
 
@@ -16,7 +17,7 @@ export class Star {
     this.pulse = pulse;
     this.time = 0;
 
-    const map = loader.load(texture);
+    const map = loader.load(assetUrl(texture));
     map.colorSpace = THREE.SRGBColorSpace;
     this.surfaceMat = new THREE.MeshBasicMaterial({ map });
     this.surface = new THREE.Mesh(new THREE.SphereGeometry(radius, 48, 32), this.surfaceMat);
