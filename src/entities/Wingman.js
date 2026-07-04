@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { loadShipModel } from '../core/ShipModel.js';
 import { makeHaloSprite } from '../core/halo.js';
 import { HERO_MODEL } from './PlayerShip.js';
+import { MAX_HP, REGEN_DELAY, REGEN_RATE } from '../core/combat.js';
 
 const _target = new THREE.Vector3();
 const _dir = new THREE.Vector3();
@@ -10,7 +11,9 @@ const _origin = new THREE.Vector3();
 /**
  * Ailier PNJ de l'escadron Aquila : même chasseur que le joueur, vole en
  * formation (offset relatif au héros, suivi avec inertie) et tire sur les
- * ennemis qui passent dans son cône avant. Invulnérable pour l'instant.
+ * ennemis qui passent dans son cône avant. Meurt dans les mêmes conditions
+ * que le joueur (mêmes PV/régén — voir core/combat.js) ; les dégâts réels
+ * sont appliqués par Game.handleCollisions via applyDamage().
  */
 export class Wingman {
   constructor(scene, offset) {
@@ -19,6 +22,11 @@ export class Wingman {
     this.group.position.copy(this.offset); // démarre à son poste, pas sur le joueur
     this.mesh = new THREE.Group();
     this.group.add(this.mesh);
+
+    this.hp = MAX_HP;
+    this.alive = true;
+    this.timeSinceDamage = REGEN_DELAY;
+    this.hitFlash = 0;
 
     this.prevX = 0;
     this.prevY = 0;
@@ -41,14 +49,34 @@ export class Wingman {
       .catch((err) => console.error('Modèle ailier indisponible — placeholder conservé', err));
 
     // Halo cyan allié, plus discret que celui du héros
-    const halo = makeHaloSprite({ color: 0x44ddff, size: 9, opacity: 0.16 });
-    halo.position.z = -4;
-    this.group.add(halo);
+    this.halo = makeHaloSprite({ color: 0x44ddff, size: 9, opacity: 0.16 });
+    this.halo.position.z = -4;
+    this.group.add(this.halo);
 
     scene.add(this.group);
   }
 
+  // Applique des dégâts (même barème que le joueur) ; déclenche la
+  // destruction si les PV tombent à zéro. Appelé par Game.handleCollisions.
+  applyDamage(amount) {
+    if (!this.alive) return;
+    this.hp = Math.max(0, this.hp - amount);
+    this.timeSinceDamage = 0;
+    this.hitFlash = 0.4;
+    if (this.hp <= 0) this.alive = false; // Game.js déclenche l'explosion au moment de l'impact
+  }
+
   update(dt, player, targets, lasers) {
+    if (!this.alive) return;
+
+    // Régénération du bouclier après un répit sans dégât (mêmes règles que le joueur)
+    this.timeSinceDamage += dt;
+    if (this.timeSinceDamage > REGEN_DELAY) {
+      this.hp = Math.min(MAX_HP, this.hp + REGEN_RATE * dt);
+    }
+    if (this.hitFlash > 0) this.hitFlash = Math.max(0, this.hitFlash - dt);
+    this.halo.material.opacity = 0.16 + this.hitFlash * 0.7;
+
     const playerPos = player.group.position;
     this.phase += dt;
 

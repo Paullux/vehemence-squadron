@@ -8,12 +8,10 @@ import { ExplosionPool } from '../entities/Explosions.js';
 import { Starfield } from '../world/Starfield.js';
 import { Environment } from '../world/Environment.js';
 import { SoundManager } from './SoundManager.js';
+import { MAX_HP, REGEN_DELAY, REGEN_RATE } from './combat.js';
 
 const BASE_FOV = 70;
 const FORWARD = new THREE.Vector3(0, 0, -1);
-const MAX_HP = 100;
-const REGEN_DELAY = 5; // secondes sans dégât avant régénération du bouclier
-const REGEN_RATE = 4; // points par seconde
 
 export class Game {
   constructor(container) {
@@ -159,7 +157,14 @@ export class Game {
   }
 
   handleCollisions() {
-    const shipPos = this.ship.group.position;
+    // Tout l'escadron (joueur + ailiers vivants) subit les mêmes règles de
+    // dégâts — un bolt ou une collision touche le premier appareil trouvé
+    // dans son rayon, qu'il s'agisse du héros ou d'un PNJ.
+    const actors = [{ position: this.ship.group.position, damage: (amt) => this.applyDamage(amt) }];
+    for (const w of this.wingmen) {
+      if (w.alive) actors.push({ position: w.group.position, damage: (amt) => this.damageWingman(w, amt) });
+    }
+
     for (const enemy of this.targets.enemies) {
       const u = enemy.userData;
       if (!u.alive) continue;
@@ -183,21 +188,38 @@ export class Game {
       });
       if (hit) this.damageEnemy(enemy);
 
-      if (u.alive && enemy.position.distanceToSquared(shipPos) < (rLat + 2) ** 2) {
-        this.destroyEnemy(enemy, 0);
-        this.applyDamage(def.ramDamage);
+      if (u.alive) {
+        for (const actor of actors) {
+          if (enemy.position.distanceToSquared(actor.position) < (rLat + 2) ** 2) {
+            this.destroyEnemy(enemy, 0);
+            actor.damage(def.ramDamage);
+            break;
+          }
+        }
       }
     }
 
-    // Lasers ennemis → héros (dégâts portés par chaque bolt)
+    // Lasers ennemis → n'importe quel appareil de l'escadron (dégâts du bolt)
     for (const pool of [this.enemyLasers, this.enemyHeavyLasers]) {
       pool.forEachActive((laser) => {
-        if (laser.position.distanceToSquared(shipPos) < 12) {
-          pool.release(laser);
-          this.sound.shieldHit();
-          this.applyDamage(laser.userData.damage || 12);
+        for (const actor of actors) {
+          if (laser.position.distanceToSquared(actor.position) < 12) {
+            pool.release(laser);
+            this.sound.shieldHit();
+            actor.damage(laser.userData.damage || 12);
+            return; // un bolt ne touche qu'un seul appareil
+          }
         }
       });
+    }
+  }
+
+  damageWingman(wingman, amount) {
+    wingman.applyDamage(amount);
+    if (!wingman.alive) {
+      this.sound.explosion('small', wingman.group.position);
+      this.explosions.spawn(wingman.group.position);
+      wingman.group.visible = false;
     }
   }
 
