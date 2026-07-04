@@ -20,13 +20,27 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout (avec assets Git LFS)
+      # lfs: false volontairement : on gère le pull nous-mêmes ci-dessous pour
+      # pouvoir le mettre en cache. Sans ça, chaque run retélécharge la
+      # totalité des objets LFS (~300 Mo) et grignote le quota gratuit
+      # GitHub (1 Go de bande passante LFS/mois) en 3-4 déploiements.
+      - name: Checkout (pointeurs LFS uniquement)
         uses: actions/checkout@v4
         with:
-          lfs: true
+          lfs: false
 
-      # actions/checkout ne télécharge que les pointeurs LFS par défaut ;
-      # ce checkout explicite récupère le contenu réel des fichiers.
+      - name: Liste des objets LFS (pour la clé de cache)
+        run: git lfs ls-files -l | cut -d' ' -f1 | sort > .lfs-assets-id
+
+      - name: Cache des objets LFS
+        uses: actions/cache@v4
+        id: lfs-cache
+        with:
+          path: .git/lfs
+          key: lfs-${{ hashFiles('.lfs-assets-id') }}
+
+      # Ne consomme de la bande passante LFS que pour les objets absents du
+      # cache (nouveaux fichiers ou fichiers modifiés depuis le dernier run).
       - name: Récupération du contenu LFS
         run: git lfs pull
 
