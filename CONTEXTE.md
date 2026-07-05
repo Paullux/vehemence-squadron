@@ -108,11 +108,18 @@ verrou.
   formation en V autour du joueur (suivi avec inertie, roulis naturel, flottement),
   tir de soutien auto sur les ennemis dans leur cône avant (leurs kills créditent le
   score). **Meurent dans les mêmes conditions que le joueur** (PV/régén partagés via
-  `src/core/combat.js`) — explosion, halo éteint, arrêt du vol/tir ; les ennemis ne
-  ciblent toujours que le joueur, mais un ailier peut mourir par collision ou en
-  étant dans la trajectoire d'un tir. Callsigns façon Top Gun (voir §9).
+  `src/core/combat.js`) — explosion, halo éteint, arrêt du vol/tir. Chaque ailier
+  expose `.velocity` (même forme que `PlayerShip`) pour la visée anticipée ennemie.
+  Callsigns façon Top Gun (voir §9).
   ⚠️ Les offsets de formation doivent rester en -Z (devant le joueur), sinon les
   ailiers passent devant la caméra de poursuite.
+- **Ciblage ennemi réparti sur tout l'escadron** (`Targets.pickTarget`) : chaque
+  chasseur ennemi (normal ou lancé par le vaisseau-mère) choisit sa cible au hasard
+  parmi le joueur ET les ailiers vivants, réévaluée toutes les 2,5-4,5 s ou dès que
+  l'ailier visé meurt. Il se dirige et tire (visée anticipée) vers cette cible, pas
+  uniquement vers le joueur. La progression en Z reste calée sur le joueur (rythme
+  du rail) — seul le point visé change. Tirage aléatoire uniforme volontaire (le
+  "plus proche" faisait converger tous les ennemis sur l'ailier de pointe).
 - **Flotte ennemie complète en jeu** (catalogue `ENEMY_TYPES` dans
   `src/entities/Targets.js`, GLB Rodin normalisés) — tous tirent avec visée anticipée
   + dispersion, fenêtre 80-600 unités :
@@ -169,6 +176,9 @@ verrou.
   pour le script à faire générer (Codex/ElevenLabs). Tant que les fichiers
   `public/audio/voice/*.wav` n'existent pas, les répliques restent silencieuses
   sans erreur (chargement paresseux, avertissement console bénin en dev).
+  Tous les sons de vol (moteur, alarme bip-bip, répliques bouclier faible) sont
+  **coupés dès la fin de mission ou le game over** (`updateAudio` gardé par `flying`) —
+  seule la musique de victoire/défaite continue.
 - Support manette Xbox (API Gamepad, mapping standard).
 
 ## 9. Callsigns de l'escadron Aquila
