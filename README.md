@@ -6,6 +6,31 @@
 
 Prototype de rail shooter space opera en Three.js + Vite.
 
+## Mission 1 — Route commerciale de Kharos-3
+
+La première mission jouable lance l'escadron Aquila depuis le porte-vaisseaux
+**Véhémence** pour rouvrir une route commerciale prise sous le feu de l'Hégémonie du
+Vide.
+
+Le flux actuel est complet :
+
+1. cinématique de recrutement ;
+2. briefing de mission et préchargement des modèles 3D ;
+3. sortie du hangar du Véhémence ;
+4. combat sur rail spatial contre patrouilles, chasseurs et artillerie ennemie ;
+5. arrivée du vaisseau-mère ennemi ;
+6. destruction des points sensibles rouges, puis du coeur réacteur ;
+7. écran de victoire et cinématique de débrief.
+
+Le gameplay est volontairement arcade : déplacement dans le cadre de vol avec
+`ZQSD` / flèches / stick gauche, visée souris capturée, clic gauche pour tirer,
+clic droit ou `Maj` pour booster, `Espace` pour ouvrir le menu pause.
+
+La mission 1 sert de base jouable pour verrouiller les sensations, la lisibilité du HUD,
+la gestion de l'escadron et le pipeline d'assets. Les prochaines missions arrivent vite :
+elles étendront progressivement les objectifs, les environnements, les boss et les
+transitions narratives autour du Véhémence.
+
 ## Lore
 
 Dans le secteur frontalier de **Kharos**, la Confédération des Mondes Libres promettait

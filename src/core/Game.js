@@ -19,6 +19,7 @@ const LAUNCH_DURATION = 3.6;
 const LAUNCH_HANGAR_DISTANCE = 360;
 const LAUNCH_HANGAR_ASPECT = 1672 / 941;
 const AIM_DEPTH = 78;
+const AIM_NEAR_DEPTH = 35;
 const AIM_RANGE_X = 22;
 const AIM_RANGE_Y = 12;
 const AUDIO_SETTINGS_KEY = 'vehemence.audio';
@@ -156,7 +157,8 @@ export class Game {
   }
 
   buildReticles() {
-    // Double réticule style Star Fox, suit la position du vaisseau (pas son roulis)
+    // Double réticule style Star Fox : grand carré proche, petit carré sur le
+    // point de convergence des lasers.
     this.aimGroup = new THREE.Group();
     const mat = new THREE.MeshBasicMaterial({
       color: 0x55ff88,
@@ -167,12 +169,12 @@ export class Game {
     });
     const near = new THREE.Mesh(new THREE.RingGeometry(1.7, 2.0, 4), mat);
     near.rotation.z = Math.PI / 4;
-    near.position.z = -35;
     near.renderOrder = 10;
     const far = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.1, 4), mat);
     far.rotation.z = Math.PI / 4;
-    far.position.z = -70;
     far.renderOrder = 10;
+    this.aimNearReticle = near;
+    this.aimFarReticle = far;
     this.aimGroup.add(near, far);
     this.scene.add(this.aimGroup);
   }
@@ -590,7 +592,13 @@ export class Game {
       sp.z - AIM_DEPTH
     );
     this._aimTarget.lerp(desired, 1 - Math.exp(-14 * dt));
-    this.aimGroup.position.copy(this._aimTarget);
+    const nearT = AIM_NEAR_DEPTH / AIM_DEPTH;
+    this.aimFarReticle.position.copy(this._aimTarget);
+    this.aimNearReticle.position.set(
+      sp.x + (this._aimTarget.x - sp.x) * nearT,
+      sp.y + (this._aimTarget.y - sp.y) * nearT,
+      sp.z - AIM_NEAR_DEPTH
+    );
   }
 
   handleCollisions() {
