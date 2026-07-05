@@ -7,6 +7,7 @@ const rand = (a, b) => a + Math.random() * (b - a);
 const _aim = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _origin = new THREE.Vector3();
+const _attackTarget = new THREE.Vector3();
 
 // Flotte de l'Hégémonie : plus le vaisseau est gros, plus il encaisse et plus
 // il tape fort. `rotationY` dépend de chaque export Rodin (vérifié visuellement
@@ -23,7 +24,7 @@ export const ENEMY_TYPES = {
     ramDamage: 25,
     approachSpeed: 22,
     wobble: 0.3,
-    halo: { color: 0xff2211, size: 11 },
+    halo: { color: 0xff3322, size: 18 },
     cadence: [2.2, 4],
     bolt: { pool: 'light', speed: 210, damage: 12 },
   },
@@ -38,7 +39,7 @@ export const ENEMY_TYPES = {
     ramDamage: 40,
     approachSpeed: 14,
     wobble: 0.12,
-    halo: { color: 0xbb44ff, size: 18 },
+    halo: { color: 0xdd55ff, size: 26 },
     cadence: [3, 5],
     bolt: { pool: 'heavy', speed: 175, damage: 20 },
   },
@@ -53,7 +54,7 @@ export const ENEMY_TYPES = {
     ramDamage: 60,
     approachSpeed: 7,
     wobble: 0.04,
-    halo: { color: 0xff6600, size: 40 },
+    halo: { color: 0xff7733, size: 52 },
     cadence: [3.5, 5.5],
     bolt: { pool: 'heavy', speed: 160, damage: 30 },
   },
@@ -74,8 +75,9 @@ export class Targets {
         placeholder.scale.setScalar(def.length * 0.25);
         enemy.add(placeholder);
         // Halo derrière la queue : silhouette à contre-jour, couleur par type
-        const halo = makeHaloSprite({ color: def.halo.color, size: def.halo.size, opacity: 0.45 });
+        const halo = makeHaloSprite({ color: def.halo.color, size: def.halo.size, opacity: 0.66 });
         halo.position.z = -def.length * 0.55;
+        halo.renderOrder = 4;
         enemy.add(halo);
         enemy.userData = {
           def,
@@ -86,6 +88,7 @@ export class Targets {
           hp: def.hp,
           time: rand(0, 10),
           drift: new THREE.Vector2(rand(-2, 2), rand(-1.5, 1.5)),
+          attackOffset: new THREE.Vector2(),
           fireCooldown: rand(...def.cadence),
           hitFlash: 0,
         };
@@ -126,30 +129,64 @@ export class Targets {
     enemy.position.set(rand(-24, 24), rand(-13, 13), shipZ - (initial ? rand(120, 700) : rand(350, 900)));
     enemy.userData.alive = true;
     enemy.userData.hp = def.hp;
+    enemy.userData.launchedByBoss = false;
     enemy.visible = true;
+  }
+
+  launchFromMothership(typeId, origin, shipZ) {
+    const enemy =
+      this.enemies.find((e) => e.userData.typeId === typeId && (!e.visible || !e.userData.alive)) ||
+      this.enemies.find((e) => e.userData.typeId === typeId);
+    if (!enemy) return;
+
+    const u = enemy.userData;
+    const def = u.def;
+    enemy.position.copy(origin);
+    enemy.position.z = Math.min(enemy.position.z, shipZ - 140);
+    enemy.visible = true;
+    u.alive = true;
+    u.hp = def.hp;
+    u.launchedByBoss = true;
+    u.fireCooldown = rand(0.45, 1.1);
+    u.attackOffset.set(rand(-7, 7), rand(-4, 4));
+    u.drift.set(rand(-1.2, 1.2), rand(-0.8, 0.8));
   }
 
   // Retourne les points marqués en traversant des anneaux cette frame.
   // `pools` = { light, heavy } : LaserPools ennemis selon le calibre.
-  update(dt, ship, pools, canFire, sound = null) {
+  update(dt, ship, pools, canFire, sound = null, { respawn = true, rings = true } = {}) {
     const shipPos = ship.group.position;
     let ringScore = 0;
 
     for (const e of this.enemies) {
       const u = e.userData;
       const def = u.def;
+      if (!respawn && !e.visible) continue;
       u.time += dt;
-      u.halo.material.opacity = 0.38 + 0.12 * Math.sin(u.time * 3);
+      u.halo.material.opacity = 0.58 + 0.16 * Math.sin(u.time * 3);
       if (u.hitFlash > 0) {
         // Coup encaissé : le halo flashe pour signaler que les PV descendent
         u.hitFlash = Math.max(0, u.hitFlash - dt);
-        u.halo.material.opacity = 0.6 + u.hitFlash;
+        u.halo.material.opacity = 0.85 + u.hitFlash;
       }
 
       if (u.hasModel) {
-        e.position.z += def.approachSpeed * dt;
-        e.rotation.z = Math.sin(u.time * 1.6) * def.wobble;
-        e.rotation.x = Math.sin(u.time * 0.9) * def.wobble * 0.3;
+        const speedMultiplier = u.launchedByBoss ? 2.35 : 1;
+        e.position.z += def.approachSpeed * speedMultiplier * dt;
+        if (u.launchedByBoss) {
+          _attackTarget.set(
+            shipPos.x + u.attackOffset.x + Math.sin(u.time * 1.7) * 2.5,
+            shipPos.y + u.attackOffset.y + Math.cos(u.time * 1.3) * 1.6,
+            e.position.z
+          );
+          e.position.x += (_attackTarget.x - e.position.x) * (1 - Math.exp(-2.6 * dt));
+          e.position.y += (_attackTarget.y - e.position.y) * (1 - Math.exp(-2.2 * dt));
+          e.rotation.z = THREE.MathUtils.clamp((shipPos.x - e.position.x) * -0.04, -0.65, 0.65);
+          e.rotation.x = THREE.MathUtils.clamp((shipPos.y - e.position.y) * 0.035, -0.35, 0.35);
+        } else {
+          e.rotation.z = Math.sin(u.time * 1.6) * def.wobble;
+          e.rotation.x = Math.sin(u.time * 0.9) * def.wobble * 0.3;
+        }
       } else {
         e.rotation.x += dt;
         e.rotation.y += 0.7 * dt;
@@ -173,15 +210,22 @@ export class Targets {
           _origin.copy(e.position).addScaledVector(_dir.clone().normalize(), def.length * 0.5);
           pools[bolt.pool].fire(_origin, _dir, bolt.speed, 4.5, bolt.damage);
           sound?.enemyLaser(u.typeId, _origin);
-          u.fireCooldown = rand(...def.cadence);
+          u.fireCooldown = u.launchedByBoss ? rand(1.0, 1.8) : rand(...def.cadence);
         }
       }
 
       if (!u.alive || e.position.z > shipPos.z + 30) {
+        if (!respawn) {
+          e.visible = false;
+          u.alive = false;
+          continue;
+        }
         this.placeEnemyAhead(e, shipPos.z);
         u.fireCooldown = rand(...def.cadence);
       }
     }
+
+    if (!rings) return ringScore;
 
     for (const r of this.rings) {
       if (r.userData.flash > 0) {

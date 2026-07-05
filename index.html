@@ -20,6 +20,9 @@
   <meta name="msapplication-config" content="/browserconfig.xml" />
   <style>
     html, body { margin: 0; padding: 0; overflow: hidden; background: #000; height: 100%; }
+    /* Curseur masqué façon FPS pendant le vol (lancement + combat) ; réaffiché
+       pour le briefing et les écrans de fin où il faut cliquer un bouton. */
+    body.cursor-hidden, body.cursor-hidden * { cursor: none !important; }
     #app { position: fixed; inset: 0; }
     #hud {
       position: fixed; inset: 0; pointer-events: none;
@@ -38,6 +41,34 @@
     }
     #hpbar { height: 100%; width: 100%; border-radius: 2px; background: #4be08a; transition: width .15s ease-out; }
     #hplabel { position: absolute; bottom: 62px; left: 50%; transform: translateX(-50%); font-size: 12px; letter-spacing: 3px; opacity: .8; }
+    #boss-hud {
+      position: absolute; top: 18px; left: 50%; transform: translateX(-50%);
+      width: min(520px, calc(100vw - 40px)); text-align: center;
+    }
+    #boss-label {
+      margin-bottom: 6px; color: #ff6d64; font-size: 13px; letter-spacing: 3px;
+      text-shadow: 0 0 9px rgba(255, 40, 28, .86);
+    }
+    #boss-wrap {
+      height: 10px; padding: 2px; border: 1px solid rgba(255, 90, 80, .65);
+      box-shadow: 0 0 10px rgba(255, 40, 28, .34);
+      background: rgba(20, 3, 3, .5);
+    }
+    #boss-bar {
+      height: 100%; width: 0%; background: #ff3328;
+      box-shadow: 0 0 12px rgba(255, 40, 28, .82);
+      transition: width .12s ease-out;
+    }
+    #mission-complete {
+      position: fixed; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 12px;
+      background: rgba(0, 12, 14, .5); pointer-events: none;
+    }
+    #mission-complete h1 {
+      margin: 0; font-size: clamp(42px, 7vw, 76px); letter-spacing: 8px;
+      color: #dffefa; text-shadow: 0 0 20px rgba(35, 215, 207, .9);
+    }
+    #mission-complete p { margin: 0; font-size: 18px; letter-spacing: 2px; color: #79fff1; }
     #damage-flash {
       position: fixed; inset: 0; pointer-events: none; opacity: 0;
       background: radial-gradient(ellipse at center, transparent 55%, rgba(255, 40, 40, .55) 100%);
@@ -79,6 +110,128 @@
       position: absolute; right: 18px; bottom: 16px; z-index: 2;
       opacity: .65;
     }
+    #debrief {
+      position: fixed; inset: 0; z-index: 20; display: flex;
+      align-items: center; justify-content: center; background: #02050b;
+      font-family: "Consolas", "Lucida Console", monospace; color: #dffefa;
+    }
+    #debrief video {
+      position: absolute; inset: 0; width: 100%; height: 100%;
+      object-fit: cover; background: #000;
+    }
+    #debrief-skip {
+      position: absolute; right: 18px; bottom: 16px; z-index: 2; opacity: .65;
+      border: 1px solid rgba(125, 255, 230, .7); color: #dffefa; background: rgba(11, 34, 48, .84);
+      padding: 10px 16px; font: inherit; letter-spacing: 2px; cursor: pointer;
+      box-shadow: 0 0 14px rgba(35, 215, 207, .16);
+    }
+    #debrief-skip:hover { background: rgba(24, 77, 94, .95); }
+    #mission-brief {
+      position: fixed; inset: 0; z-index: 18; display: flex;
+      align-items: center; justify-content: center;
+      background:
+        linear-gradient(rgba(125, 255, 230, .045) 1px, transparent 1px),
+        radial-gradient(ellipse at center, rgba(4, 18, 28, .95), #02050b 72%);
+      background-size: 100% 4px, 100% 100%;
+      font-family: "Consolas", "Lucida Console", monospace; color: #dffefa;
+      text-shadow: 0 0 7px rgba(35, 215, 207, .6);
+    }
+    #mission-panel {
+      width: min(780px, calc(100vw - 36px));
+      border: 1px solid rgba(125, 255, 230, .42);
+      background: rgba(3, 10, 18, .78);
+      box-shadow: 0 0 28px rgba(35, 215, 207, .16), inset 0 0 32px rgba(35, 215, 207, .06);
+      padding: 28px 30px 24px;
+    }
+    #mission-kicker {
+      margin-bottom: 22px; color: #79fff1; font-size: 13px; letter-spacing: 3px;
+    }
+    #mission-panel h1 {
+      margin: 0 0 16px;
+      font-family: Impact, "Arial Narrow", sans-serif; color: #f7fbff;
+      font-size: clamp(34px, 5vw, 60px); line-height: .95; letter-spacing: 2px;
+      text-shadow: 0 3px 0 #07111d, 0 0 16px rgba(35, 215, 207, .52);
+    }
+    #mission-copy {
+      margin: 0 0 22px; max-width: 650px;
+      font-size: clamp(15px, 2vw, 19px); line-height: 1.55; letter-spacing: 1px;
+    }
+    #mission-objective {
+      display: grid; grid-template-columns: 118px 1fr; gap: 12px;
+      border-top: 1px solid rgba(125, 255, 230, .24);
+      border-bottom: 1px solid rgba(125, 255, 230, .24);
+      padding: 14px 0; margin-bottom: 22px;
+      font-size: 13px; letter-spacing: 2px;
+    }
+    #mission-objective span:first-child { color: #79fff1; }
+    #mission-load {
+      height: 4px; background: rgba(35, 215, 207, .16); overflow: hidden;
+      box-shadow: inset 0 0 8px rgba(35, 215, 207, .2);
+    }
+    #mission-progress {
+      width: 100%; height: 100%; transform: scaleX(0); transform-origin: left;
+      background: #79fff1; box-shadow: 0 0 14px rgba(35, 215, 207, .88);
+    }
+    #mission-status {
+      margin-top: 12px; color: #79fff1; font-size: 12px; letter-spacing: 3px;
+    }
+    #launch-sequence {
+      position: fixed; inset: 0; z-index: 8; pointer-events: none; overflow: hidden;
+      font-family: "Consolas", "Lucida Console", monospace; color: #dffefa;
+      text-shadow: 0 0 7px rgba(35, 215, 207, .72);
+    }
+    #launch-sequence::before {
+      content: ""; position: absolute; inset: 14px;
+      border: 1px solid rgba(35, 215, 207, .42);
+      box-shadow: inset 0 0 24px rgba(35, 215, 207, .12);
+    }
+    #launch-sequence::after {
+      content: ""; position: absolute; inset: 0;
+      background:
+        linear-gradient(rgba(125, 255, 230, .08) 1px, transparent 1px),
+        radial-gradient(ellipse at center, transparent 54%, rgba(0, 5, 10, .58) 100%);
+      background-size: 100% 4px, 100% 100%;
+      mix-blend-mode: screen;
+      opacity: .52;
+    }
+    #launch-top-left,
+    #launch-top-right,
+    #launch-bottom-left,
+    #launch-bottom-right,
+    #launch-title {
+      position: absolute; z-index: 1; letter-spacing: 2px;
+    }
+    #launch-top-left { top: 36px; left: 48px; color: #79fff1; font-size: 16px; }
+    #launch-top-right { top: 36px; right: 88px; font-size: 16px; opacity: .9; }
+    #launch-bottom-left { bottom: 34px; left: 34px; font-size: 13px; opacity: .86; }
+    #launch-bottom-right { bottom: 34px; right: 42px; color: #79fff1; font-size: 13px; }
+    #launch-title {
+      left: 0; right: 0; bottom: 64px; text-align: center;
+      font-family: Impact, "Arial Narrow", sans-serif; font-size: clamp(32px, 4.4vw, 60px);
+      line-height: .92; letter-spacing: 2px; color: #f7fbff;
+      text-shadow: 0 3px 0 #07111d, 0 0 15px rgba(35, 215, 207, .52);
+    }
+    #launch-subtitle {
+      display: block; margin-top: 7px;
+      font-family: "Consolas", "Lucida Console", monospace;
+      font-size: clamp(16px, 2vw, 28px); color: #79fff1;
+      letter-spacing: 2px; text-shadow: 0 0 10px rgba(35, 215, 207, .8);
+    }
+    #launch-progress-wrap {
+      position: absolute; left: 14px; right: 14px; bottom: 0; height: 3px;
+      background: rgba(35, 215, 207, .18); z-index: 1;
+    }
+    #launch-progress {
+      width: 100%; height: 100%; transform: scaleX(0); transform-origin: left;
+      background: #79fff1; box-shadow: 0 0 14px rgba(35, 215, 207, .88);
+    }
+    #hud.launching > #score,
+    #hud.launching > #speed,
+    #hud.launching > #hint,
+    #hud.launching > #hpwrap,
+    #hud.launching > #hplabel {
+      display: none;
+    }
     .hidden { display: none !important; }
   </style>
 </head>
@@ -96,13 +249,54 @@
     </div>
     <button id="intro-skip" class="hidden" type="button">PASSER</button>
   </div>
+  <div id="mission-brief" class="hidden">
+    <div id="mission-panel">
+      <div id="mission-kicker">BRIEFING DE MISSION // ROUTE KHAROS-3</div>
+      <h1>LIBERER LA ROUTE COMMERCIALE</h1>
+      <p id="mission-copy">
+        Le Vehemence ouvre une fenêtre de lancement. Votre escadron doit arriver à libérer au maximum
+        cette route commerciale de l'Empire du Vide.
+      </p>
+      <div id="mission-objective">
+        <span>OBJECTIF</span>
+        <span>Abattre les patrouilles, tenir le corridor, préserver l'escadron Aquila.</span>
+      </div>
+      <div id="mission-load"><div id="mission-progress"></div></div>
+      <div id="mission-status">CHARGEMENT DES APPAREILS 3D</div>
+    </div>
+  </div>
+  <div id="debrief" class="hidden">
+    <video id="debrief-video" src="/cinematics/first_mission_end/debrief_end_first_mission.mp4" preload="none" playsinline></video>
+    <button id="debrief-skip" class="hidden" type="button">PASSER</button>
+  </div>
+  <div id="launch-sequence" class="hidden">
+    <div id="launch-top-left">CONFEDERATION DES MONDES LIBRES</div>
+    <div id="launch-top-right">PUBLIC FEED 03</div>
+    <div id="launch-title">
+      LE VEHEMENCE VOUS OUVRE LA VOIE
+      <span id="launch-subtitle">SERVIR. VOLER. TENIR.</span>
+    </div>
+    <div id="launch-bottom-left">TRANSMISSION PUBLIQUE AUTORISEE PAR LE COMMANDEMENT</div>
+    <div id="launch-bottom-right">VEH-TV</div>
+    <div id="launch-progress-wrap"><div id="launch-progress"></div></div>
+    <div id="launch-status" class="hidden">CATAPULTES SYNCHRONISEES</div>
+  </div>
   <div id="hud" class="hidden">
     <div id="score">SCORE 0</div>
     <div id="speed"></div>
     <div id="hplabel">BOUCLIER</div>
     <div id="hpwrap"><div id="hpbar"></div></div>
+    <div id="boss-hud" class="hidden">
+      <div id="boss-label">VAISSEAU-MERE</div>
+      <div id="boss-wrap"><div id="boss-bar"></div></div>
+    </div>
     <div id="hint">ZQSD / Flèches ou stick gauche : piloter — ESPACE / RT / A : tirer — MAJ / LT / LB : boost</div>
     <div id="damage-flash"></div>
+    <div id="mission-complete" class="hidden">
+      <h1>ROUTE LIBEREE</h1>
+      <p>VAISSEAU-MERE DETRUIT</p>
+      <p>SCORE FINAL : <span id="victory-score">0</span></p>
+    </div>
     <div id="gameover" class="hidden">
       <h1>GAME OVER</h1>
       <p>SCORE FINAL : <span id="final-score">0</span></p>

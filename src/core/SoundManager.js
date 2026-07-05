@@ -50,6 +50,7 @@ const VOICE = {
   lowEnergyRenard: `${VOICE_PATH}low_energy_renard.wav`,
   lowEnergyCobra: `${VOICE_PATH}low_energy_cobra.wav`,
   lowEnergyCorbeau: `${VOICE_PATH}low_energy_corbeau.wav`,
+  fightBossMothership: `${VOICE_PATH}fight_boss_mothership.wav`,
 };
 
 const KILL_LINES = ['kill1', 'kill2', 'kill3'];
@@ -89,7 +90,7 @@ function makeStaticNoiseBuffer(ctx) {
 }
 
 export class SoundManager {
-  constructor({ master = 0.72, sfx = 0.85, music = 0.42, engine = 0.5, voice = 0.95 } = {}) {
+  constructor({ master = 0.72, sfx = 0.85, music = 0.42, engine = 0.5, voice = 1.28 } = {}) {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     this.ctx = AudioContext ? new AudioContext() : null;
     this.enabled = !!this.ctx;
@@ -129,10 +130,10 @@ export class SoundManager {
     // playVoiceLine(). Les fichiers sources doivent rester des voix propres.
     this.radioFilter = this.ctx.createBiquadFilter();
     this.radioFilter.type = 'bandpass';
-    this.radioFilter.frequency.value = 1900;
-    this.radioFilter.Q.value = 0.7;
+    this.radioFilter.frequency.value = 1750;
+    this.radioFilter.Q.value = 1.15;
     this.radioDrive = this.ctx.createWaveShaper();
-    this.radioDrive.curve = makeDriveCurve(6);
+    this.radioDrive.curve = makeDriveCurve(14);
     this.radioDrive.connect(this.radioFilter);
     this.radioFilter.connect(this.voiceGain);
 
@@ -146,7 +147,7 @@ export class SoundManager {
   }
 
   preload() {
-    for (const [name, url] of Object.entries({ ...SFX, mission01: MUSIC.mission01 })) {
+    for (const [name, url] of Object.entries({ ...SFX, mission01: MUSIC.mission01, fightBossMothership: VOICE.fightBossMothership })) {
       this.load(name, url);
     }
   }
@@ -386,8 +387,8 @@ export class SoundManager {
     noise.buffer = this.staticNoiseBuffer;
     noise.loop = true;
     noiseGain.gain.setValueAtTime(0, startAt);
-    noiseGain.gain.linearRampToValueAtTime(0.05, startAt + 0.05);
-    noiseGain.gain.setValueAtTime(0.05, startAt + duration - 0.08);
+    noiseGain.gain.linearRampToValueAtTime(0.075, startAt + 0.05);
+    noiseGain.gain.setValueAtTime(0.075, startAt + duration - 0.08);
     noiseGain.gain.linearRampToValueAtTime(0, startAt + duration + 0.1);
     noise.connect(noiseGain);
     noiseGain.connect(this.radioDrive);
@@ -408,6 +409,10 @@ export class SoundManager {
     this.playVoiceLine(callsign ? `lowEnergy${callsign}` : 'lowEnergyPlayer', {
       rate: callsign ? CHARACTER_RATE[callsign] ?? 1 : 1,
     });
+  }
+
+  bossMothershipIncoming() {
+    this.playVoiceLine('fightBossMothership', { volume: 1.12, rate: 0.98 });
   }
 
   // Bip-bip strident synthétisé (aucun fichier requis) : activé/désactivé

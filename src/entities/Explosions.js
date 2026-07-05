@@ -1,7 +1,24 @@
 import * as THREE from 'three';
+import { assetUrl } from '../core/assetUrl.js';
 
 const COUNT = 60;
 const LIFETIME = 0.9;
+const SPRITE_LIFETIME = 0.72;
+const EXPLOSION_TEXTURE_PATHS = [
+  '/textures/explosions/explosion_01.png',
+  '/textures/explosions/explosion_02.png',
+  '/textures/explosions/explosion_03.png',
+];
+
+const textureLoader = new THREE.TextureLoader();
+const explosionTextures = EXPLOSION_TEXTURE_PATHS.map((path) => {
+  const texture = textureLoader.load(assetUrl(path));
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.generateMipmaps = true;
+  return texture;
+});
 
 class Explosion {
   constructor(scene) {
@@ -20,11 +37,25 @@ class Explosion {
     this.points = new THREE.Points(this.geo, this.mat);
     this.points.visible = false;
     this.points.frustumCulled = false;
+    this.spriteMat = new THREE.SpriteMaterial({
+      map: explosionTextures[0],
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.sprite = new THREE.Sprite(this.spriteMat);
+    this.sprite.visible = false;
+    this.sprite.frustumCulled = false;
     this.life = 0;
+    this.spriteLife = 0;
+    this.spriteBaseScale = 1;
     scene.add(this.points);
+    scene.add(this.sprite);
   }
 
-  spawn(pos) {
+  spawn(pos, options = {}) {
     const v = new THREE.Vector3();
     for (let i = 0; i < COUNT; i++) {
       this.positions[i * 3] = pos.x;
@@ -39,33 +70,53 @@ class Explosion {
     this.life = LIFETIME;
     this.mat.opacity = 1;
     this.points.visible = true;
+    this.spriteLife = SPRITE_LIFETIME;
+    this.spriteBaseScale = options.scale ?? (8 + Math.random() * 7);
+    this.sprite.position.copy(pos);
+    this.sprite.scale.setScalar(this.spriteBaseScale * 0.55);
+    this.spriteMat.map = explosionTextures[Math.floor(Math.random() * explosionTextures.length)];
+    this.spriteMat.rotation = Math.random() * Math.PI * 2;
+    this.spriteMat.opacity = 0.95;
+    this.spriteMat.needsUpdate = true;
+    this.sprite.visible = true;
   }
 
   update(dt) {
-    if (!this.points.visible) return;
+    if (!this.points.visible && !this.sprite.visible) return;
     this.life -= dt;
     if (this.life <= 0) {
       this.points.visible = false;
-      return;
+    } else {
+      const damp = Math.max(0, 1 - dt * 1.4);
+      for (let i = 0; i < COUNT * 3; i++) {
+        this.velocities[i] *= damp;
+        this.positions[i] += this.velocities[i] * dt;
+      }
+      this.geo.attributes.position.needsUpdate = true;
+      this.mat.opacity = this.life / LIFETIME;
     }
-    const damp = Math.max(0, 1 - dt * 1.4);
-    for (let i = 0; i < COUNT * 3; i++) {
-      this.velocities[i] *= damp;
-      this.positions[i] += this.velocities[i] * dt;
+
+    this.spriteLife -= dt;
+    if (this.spriteLife <= 0) {
+      this.sprite.visible = false;
+    } else {
+      const progress = 1 - this.spriteLife / SPRITE_LIFETIME;
+      const pulse = Math.sin(progress * Math.PI);
+      const scale = this.spriteBaseScale * (0.65 + progress * 1.7);
+      this.sprite.scale.setScalar(scale);
+      this.spriteMat.opacity = Math.max(0, (1 - progress) * 0.82 + pulse * 0.18);
     }
-    this.geo.attributes.position.needsUpdate = true;
-    this.mat.opacity = this.life / LIFETIME;
   }
 }
 
 export class ExplosionPool {
   constructor(scene) {
-    this.items = Array.from({ length: 6 }, () => new Explosion(scene));
+    this.items = Array.from({ length: 10 }, () => new Explosion(scene));
   }
 
-  spawn(pos) {
-    const e = this.items.find((x) => !x.points.visible) || this.items[0];
-    e.spawn(pos);
+  spawn(pos, options) {
+    const e = this.items.find((x) => !x.points.visible && !x.sprite.visible) || this.items[0];
+    e.spawn(pos, options);
   }
 
   update(dt) {

@@ -24,7 +24,9 @@ avancer l'histoire.
 
 - **Première planète : Kharos-3**, monde désertique volcanique (textures déjà en jeu) —
   théâtre de la première campagne.
-- Les phases au sol sur les planètes sont prévues **dans un second temps**.
+- Les phases au sol sur les planètes sont prévues **dans un second temps long** :
+  elles doivent arriver comme un événement narratif, quand l'ennemi est affaibli et
+  que les héros sont assez forts pour descendre du ciel.
 
 ## 3. Piliers de design
 
@@ -33,13 +35,23 @@ avancer l'histoire.
 3. **Réaliste mais simple** — vaisseaux crédibles (Rodin), pas de simulation.
 4. **Solo-dev friendly** — chaque système doit rester simple à étendre.
 
-## 4. Modes de gameplay
+## 4. Modes de gameplay visés
 
 | Mode | Description | Statut |
 |---|---|---|
-| **Rail (corridor)** | Avance automatique, déplacement dans un cadre, roulis/tangage visuels, double réticule | ✅ Prototype jouable |
-| **All-range (zone libre)** | Arène de dogfight, vol libre simplifié, IA ennemie | 🔜 À construire |
-| **Phases au sol** | Exploration/combat sur les planètes | ⏳ Second temps |
+| **Vol sur rail spatial** | Avance automatique, déplacement dans un cadre, roulis/tangage visuels, double réticule, vagues ennemies | ✅ Prototype jouable |
+| **Vol libre six axes** | Arène de dogfight, liberté complète autour de cibles lourdes, IA d'escadron plus indépendante | 🔜 À construire après un premier boss |
+| **Vol sur rail planétaire** | Même ADN arcade que le rail spatial, mais avec sol, relief, horizon, bases et tourelles | ⏳ Deuxième grande extension |
+| **Combat au sol** | Fusils à plasma, progression à pied, bataille ultime lorsque les héros peuvent enfin affronter l'ennemi au sol | 🌙 Fin de jeu / long terme |
+
+Intention de progression :
+1. **Survivre** — rail spatial : escorte, interception, libération des routes.
+2. **Reprendre l'initiative** — vol libre : attaque de capital ships et défense du
+   *Véhémence*.
+3. **Percer les mondes occupés** — rail planétaire : assauts basse altitude, corridors
+   civils, neutralisation de défenses de surface.
+4. **Descendre du ciel** — combat au sol : bataille ultime, quand l'Empire du Vide est
+   assez affaibli pour qu'un assaut terrestre ait du sens.
 
 ## 5. Contrôles (axe Y inversé, façon aviation)
 
@@ -58,12 +70,24 @@ avancer l'histoire.
 - **LTX (local, 720p)** → animation des images ChatGPT en cinématiques entre les missions.
 - Placeholders en primitives Three.js tant que les assets finaux ne sont pas prêts ; le
   mesh du vaisseau joueur est isolé dans `PlayerShip.buildMesh()` pour un swap GLB facile.
+- Les modèles GLB critiques sont maintenant **préchargés et mis en cache** avant la
+  création de `Game` (`preloadShipModels()` dans `src/core/ShipModel.js`) : le briefing
+  de mission sert aussi d'écran de chargement, puis chaque instance clone le modèle
+  déjà normalisé. Objectif : éviter les placeholders visibles au lancement.
 
 ## 7. État actuel du prototype
 
 - Vol sur rail complet : lasers alternés, drones destructibles (+50), anneaux à
   traverser (+100), explosions, boost avec recul caméra, champ d'étoiles infini,
   HUD score/vitesse.
+- **Flux de lancement actuel** : intro vidéo de recrutement → briefing mission de 30 s
+  (préchargement GLB + image de hangar) → sortie du *Véhémence* (~3,6 s) → gameplay.
+  Le briefing actuel annonce la mission : libérer au maximum la route commerciale de
+  Kharos-3 occupée par l'Empire/Hégémonie du Vide.
+- **Sortie du Véhémence** : utilise `public/images/interieur_vehemence.png` comme
+  texture transparente dans la scène Three.js, rendue devant le ciel étoilé mais
+  derrière les vaisseaux. Les Aquila sortent du hangar avec traînées cyan et overlay
+  "PUBLIC FEED 03" en HTML.
 - **Vaisseau héros : le chasseur Aquila** (`public/space_ships/heroes/aquila_fighter/`),
   modèle Rodin low-poly PBR (~4 600 sommets) avec émissif appliqué au chargement.
 - **Escadron Aquila** (`src/entities/Wingman.js`) : 3 ailiers PNJ sur le même chasseur,
@@ -85,6 +109,26 @@ avancer l'histoire.
   - Hitbox et point de tir proportionnels au gabarit ; halo qui flashe quand un ennemi
     encaisse sans mourir. Attention : l'orientation des exports Rodin varie
     (`rotationY` par type, vérifiée contre les images `references/`).
+- **Prototype boss vaisseau-mère** (`src/entities/MothershipBoss.js`) :
+  `public/space_ships/ennemies/mothership/base_basic_pbr.glb` est intégré comme
+  capital ship dédié, préchargé pendant le briefing. Il apparaît rapidement après le
+  début de mission, coupe les vagues normales, affiche une barre de boss et des points
+  faibles rouges clignotants. Le vaisseau-mère effectue une rotation lente pendant
+  le combat pour exposer progressivement ses flancs et permettre au rail shooter de
+  viser tous les modules. Il lance périodiquement 1 ou 2 chasseurs depuis ses baies
+  d'envol, mais en quantité limitée pour rester jouable. Les modules extérieurs
+  doivent être détruits avant l'exposition du coeur/réacteur final ; sa destruction
+  déclenche l'écran
+  **ROUTE LIBEREE**. C'est une v1 jouable du concept, à régler ensuite : échelle,
+  orientation, trajectoire rail autour de la coque, patterns de tir et placement fin
+  des points faibles.
+- **Cinématique de debrief** (`completeMission()` dans `src/core/Game.js`) : ~2,5 s
+  après l'écran de résultats, enchaîne automatiquement sur
+  `public/cinematics/first_mission_end/debrief_end_first_mission.mp4` (bouton PASSER
+  disponible après 1 s). Redémarrage (ESPACE/A) verrouillé tant que la vidéo n'est
+  pas terminée ou sautée (`this.debriefDone`), pour ne pas la zapper par inadvertance
+  depuis l'écran de score. Voir aussi `public/cinematics/mission_debrief/` pour le
+  script complet du prochain debrief (storyboard + prompts LTX).
 - **Bouclier du héros : 100 PV** (laser ennemi -12, collision -25), régénération
   +4 PV/s après 5 s sans dégât. HUD : barre de bouclier (vert/orange/rouge), vignette
   rouge d'impact, secousse caméra. **Game over** avec score final, restart ESPACE/A.
@@ -100,7 +144,8 @@ avancer l'histoire.
   et blindage, explosions par gabarit. **Alarme de bouclier critique** (<25%) :
   bip-bip strident synthétisé en direct (oscillateur, aucun fichier requis).
   **Répliques radio de l'escadron** : chaîne "radio militaire" appliquée en direct
-  (filtre bandpass + saturation + souffle statique procédural) sur des
+  (filtre bandpass resserré + saturation renforcée + souffle statique procédural)
+  sur des
   enregistrements propres — voir §9 et `public/audio/prompts/voice_prompts.md`
   pour le script à faire générer (Codex/ElevenLabs). Tant que les fichiers
   `public/audio/voice/*.wav` n'existent pas, les répliques restent silencieuses
@@ -120,6 +165,26 @@ Réserve pour de futurs pilotes de remplacement (si un ailier meurt en mission e
 l'escadron est renforcé) : *Frelon, Spectre, Phénix, Vipère, Bourrasque*.
 
 ## 10. Feuille de route
+
+Priorité de design actée après discussion :
+- Construire d'abord une **mission complète en vol sur rail spatial**, avec boss et
+  fin de mission, avant d'ouvrir les autres modes.
+- Boss v1 retenu : **vaisseau mère / capital ship ennemi**, plutôt qu'une base
+  planétaire. Raison : il reste compatible avec le gameplay spatial actuel et permet
+  une fin spectaculaire sans développer tout de suite sol, relief et atmosphère.
+- Structure boss v1 proposée :
+  1. vagues de route commerciale ;
+  2. annonce radio d'un contact massif ;
+  3. apparition du capital ship ;
+  4. destruction de points faibles (tourelles, batteries, coeur/réacteur) ;
+  5. ailiers survivants en attaques scriptées autour des modules ;
+  6. explosion finale, musique de victoire, écran "ROUTE COMMERCIALE LIBEREE".
+- Le vol libre six axes reste une cible importante, mais plutôt pour une v2 du combat
+  contre capital ship : liberté autour du boss, survivants autonomes, attaque sous
+  plusieurs angles.
+- La base ennemie sur planète reste une excellente piste pour plus tard : elle demande
+  un mode rail planétaire avec sol, relief, brouillard/HDRI Rodin AI, tourelles et
+  règles d'altitude lisibles.
 
 Phase "structure" (architecture, avec Fable 5) :
 1. Machine à états : menu / cinématique / vol rail / all-range / game over
