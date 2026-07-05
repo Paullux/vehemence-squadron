@@ -33,6 +33,14 @@
     #score { position: absolute; top: 18px; left: 22px; font-size: 22px; letter-spacing: 2px; }
     #speed { position: absolute; bottom: 18px; left: 22px; font-size: 16px; letter-spacing: 1px; }
     #hint  { position: absolute; bottom: 14px; width: 100%; text-align: center; font-size: 13px; opacity: .65; }
+    #pointer-lock-hint {
+      position: absolute; inset: 0; display: flex; flex-direction: column;
+      align-items: center; justify-content: center; gap: 8px;
+      background: rgba(0, 8, 10, .35); text-align: center;
+      font-size: 18px; letter-spacing: 2px;
+      text-shadow: 0 0 12px rgba(60, 255, 140, .8);
+    }
+    #pointer-lock-hint span { font-size: 12px; opacity: .7; letter-spacing: 1px; }
     #hpwrap {
       position: absolute; bottom: 44px; left: 50%; transform: translateX(-50%);
       width: 300px; height: 14px; padding: 2px;
@@ -291,6 +299,10 @@
       <div id="boss-wrap"><div id="boss-bar"></div></div>
     </div>
     <div id="hint">ZQSD / Flèches ou stick gauche : piloter — ESPACE / RT / A : tirer — MAJ / LT / LB : boost</div>
+    <div id="pointer-lock-hint" class="hidden">
+      CLIQUEZ POUR CAPTURER LA VISEE SOURIS
+      <span>ECHAP POUR LA RELACHER</span>
+    </div>
     <div id="damage-flash"></div>
     <div id="mission-complete" class="hidden">
       <h1>ROUTE LIBEREE</h1>

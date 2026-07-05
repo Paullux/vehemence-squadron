@@ -58,11 +58,25 @@ Intention de progression :
 | Action | Clavier | Manette Xbox |
 |---|---|---|
 | Piloter | ZQSD / WASD / Flèches | Stick gauche |
-| Tirer | Espace | RT ou A |
-| Boost | Maj | LT ou LB |
+| Tirer | Espace / clic gauche (souris capturée) | RT ou A |
+| Boost | Maj / clic droit (souris capturée) | LT ou LB |
+
+**Visée souris façon FPS** (`src/core/Input.js`) : capturée via Pointer Lock API
+(clic sur le jeu pour capturer, **Échap** pour relâcher — natif navigateur).
+Hors capture, la souris ne fait strictement rien (pas de visée, pas de clic sur
+la page) ; un rappel HUD ("CLIQUEZ POUR CAPTURER...") s'affiche tant qu'elle
+n'est pas engagée. Une fois capturée, les deltas relatifs (`movementX/Y`)
+pilotent le réticule en continu, clavier/manette restent indépendants du
+verrou.
 
 ## 6. Pipeline d'assets
 
+- Dossier source hors repo GitHub : `I:\jeu Space Opera Threejs - Source`.
+  Convention à garder pour la suite : y placer les fichiers lourds et génératifs
+  (prompts ChatGPT/Rodin/LTX, fichiers Blender, sources vidéo, HDRI de travail,
+  images de référence, exports intermédiaires). Le repo `I:\jeu Space Opera Threejs`
+  ne doit garder que les assets finaux optimisés nécessaires au jeu dans `public/`
+  et le code source. Objectif : pouvoir itérer sur les assets sans alourdir le dépôt.
 - **ChatGPT** → concept arts (vues orthographiques pour Rodin) et **textures de planètes**
   (équirectangulaires 2:1, pack albedo/clouds/normal/roughness/emission — voir
   `public/textures/planets/README.md`).
@@ -121,7 +135,12 @@ Intention de progression :
   déclenche l'écran
   **ROUTE LIBEREE**. C'est une v1 jouable du concept, à régler ensuite : échelle,
   orientation, trajectoire rail autour de la coque, patterns de tir et placement fin
-  des points faibles.
+  des points faibles. Les points faibles peuvent maintenant être placés directement
+  dans Blender avec des objets nommés `vulnerable_target.000` à
+  `vulnerable_target.007` (ou plus si besoin) : le jeu détecte ces objets dans le GLB,
+  masque leurs meshes et place les marqueurs HUD rouges à leurs positions. Le dernier
+  `vulnerable_target.00x` détecté est traité comme coeur/réacteur verrouillé à
+  détruire en dernier.
 - **Cinématique de debrief** (`completeMission()` dans `src/core/Game.js`) : ~2,5 s
   après l'écran de résultats, enchaîne automatiquement sur
   `public/cinematics/first_mission_end/debrief_end_first_mission.mp4` (bouton PASSER

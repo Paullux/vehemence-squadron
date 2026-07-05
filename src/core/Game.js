@@ -96,6 +96,7 @@ export class Game {
     this.hudBossBar = document.getElementById('boss-bar');
     this.hudMissionComplete = document.getElementById('mission-complete');
     this.hudVictoryScore = document.getElementById('victory-score');
+    this.hudPointerLockHint = document.getElementById('pointer-lock-hint');
     this.debriefOverlay = document.getElementById('debrief');
     this.debriefVideo = document.getElementById('debrief-video');
     this.debriefSkip = document.getElementById('debrief-skip');
@@ -668,5 +669,9 @@ export class Game {
       this.hudBossLabel.textContent = this.boss.getStatusLabel();
       this.hudBossBar.style.width = `${(1 - this.boss.getProgress()) * 100}%`;
     }
+
+    // Souris capturée façon FPS : rappel tant qu'elle n'est pas engagée
+    const needsLock = !this.launching && !this.gameOver && !this.missionComplete && !this.input.pointerLocked;
+    this.hudPointerLockHint.classList.toggle('hidden', !needsLock);
   }
 }
