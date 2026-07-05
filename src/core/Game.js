@@ -634,19 +634,26 @@ export class Game {
 
   updateAudio(dt) {
     this.sound.setListener(this.camera.position);
-    const boosting = this.input.boost && !this.wasBoosting && !this.gameOver;
-    this.sound.updateHeroEngine({
-      boostAmount: this.ship.boostAmount,
-      forwardSpeed: this.ship.forwardSpeed,
-      boosting,
-    });
-    this.wasBoosting = this.input.boost && !this.gameOver;
+    // Sons de vol (moteur, alarme, répliques) coupés dès la fin de mission —
+    // seule la musique de victoire/défaite doit continuer à jouer.
+    const flying = !this.gameOver && !this.missionComplete;
+    if (flying) {
+      const boosting = this.input.boost && !this.wasBoosting;
+      this.sound.updateHeroEngine({
+        boostAmount: this.ship.boostAmount,
+        forwardSpeed: this.ship.forwardSpeed,
+        boosting,
+      });
+    } else {
+      this.sound.setLoop('heroEngine', { volume: 0 });
+    }
+    this.wasBoosting = this.input.boost && flying;
 
     const ratio = this.hp / MAX_HP;
-    this.sound.updateShieldAlarm(dt, ratio < 0.25 && !this.gameOver);
+    this.sound.updateShieldAlarm(dt, flying && ratio < 0.25);
 
     // Réplique "bouclier faible", une seule fois par épisode critique
-    if (ratio < 0.3 && !this.lowEnergyFired && !this.gameOver) {
+    if (flying && ratio < 0.3 && !this.lowEnergyFired) {
       this.lowEnergyFired = true;
       this.sound.lowEnergy(null);
     } else if (ratio > 0.6) {
