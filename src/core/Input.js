@@ -90,7 +90,6 @@ export class Input {
 
   get fire() {
     if (this.pointerLocked && this.buttons.has(0)) return true;
-    if (this.isDown('Space')) return true;
     const gp = this.gamepad;
     return !!gp && (buttonPressed(gp, 7) || buttonPressed(gp, 0)); // RT ou A
   }

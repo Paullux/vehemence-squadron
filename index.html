@@ -41,6 +41,55 @@
       text-shadow: 0 0 12px rgba(60, 255, 140, .8);
     }
     #pointer-lock-hint span { font-size: 12px; opacity: .7; letter-spacing: 1px; }
+    #pause-menu {
+      position: fixed; inset: 0; z-index: 15; pointer-events: auto;
+      display: flex; align-items: center; justify-content: center;
+      background:
+        linear-gradient(rgba(125, 255, 230, .055) 1px, transparent 1px),
+        rgba(0, 8, 14, .72);
+      background-size: 100% 4px, 100% 100%;
+      font-family: "Consolas", "Lucida Console", monospace;
+      color: #dffefa; text-shadow: 0 0 8px rgba(35, 215, 207, .62);
+    }
+    #pause-panel {
+      width: min(760px, calc(100vw - 36px));
+      border: 1px solid rgba(125, 255, 230, .5);
+      background: rgba(3, 10, 18, .88);
+      box-shadow: 0 0 28px rgba(35, 215, 207, .18), inset 0 0 28px rgba(35, 215, 207, .06);
+      padding: 24px;
+    }
+    #pause-panel h2 {
+      margin: 0 0 18px;
+      font-family: Impact, "Arial Narrow", sans-serif;
+      font-size: clamp(34px, 4vw, 52px); letter-spacing: 3px;
+      color: #f7fbff; text-shadow: 0 3px 0 #07111d, 0 0 16px rgba(35, 215, 207, .5);
+    }
+    .pause-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+    .pause-section {
+      border-top: 1px solid rgba(125, 255, 230, .25);
+      padding-top: 14px;
+    }
+    .pause-section h3 {
+      margin: 0 0 12px; color: #79fff1; font-size: 14px; letter-spacing: 3px;
+    }
+    .pause-row {
+      display: grid; grid-template-columns: 110px 1fr 42px; align-items: center;
+      gap: 10px; margin: 10px 0; font-size: 13px; letter-spacing: 1px;
+    }
+    .pause-row input { width: 100%; accent-color: #79fff1; }
+    .pause-actions { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 18px; }
+    .pause-actions button {
+      border: 1px solid rgba(125, 255, 230, .68); color: #dffefa;
+      background: rgba(11, 34, 48, .84); padding: 10px 14px;
+      font: inherit; letter-spacing: 2px; cursor: pointer;
+      box-shadow: 0 0 14px rgba(35, 215, 207, .16);
+    }
+    .pause-actions button:hover { background: rgba(24, 77, 94, .95); }
+    #pause-save-status { min-height: 32px; margin: 8px 0 0; font-size: 12px; line-height: 1.45; opacity: .82; }
+    @media (max-width: 720px) {
+      .pause-grid { grid-template-columns: 1fr; }
+      .pause-row { grid-template-columns: 92px 1fr 38px; }
+    }
     #hpwrap {
       position: absolute; bottom: 44px; left: 50%; transform: translateX(-50%);
       width: 300px; height: 14px; padding: 2px;
@@ -298,10 +347,35 @@
       <div id="boss-label">VAISSEAU-MERE</div>
       <div id="boss-wrap"><div id="boss-bar"></div></div>
     </div>
-    <div id="hint">ZQSD / Flèches ou stick gauche : piloter — ESPACE / RT / A : tirer — MAJ / LT / LB : boost</div>
+    <div id="hint">ZQSD / Flèches ou stick gauche : piloter — clic gauche / RT / A : tirer — clic droit / MAJ / LT / LB : boost — ESPACE : pause</div>
     <div id="pointer-lock-hint" class="hidden">
       CLIQUEZ POUR CAPTURER LA VISEE SOURIS
       <span>ECHAP POUR LA RELACHER</span>
+    </div>
+    <div id="pause-menu" class="hidden">
+      <div id="pause-panel">
+        <h2>PAUSE</h2>
+        <div class="pause-grid">
+          <section class="pause-section">
+            <h3>AUDIO</h3>
+            <label class="pause-row">MASTER <input id="audio-master" type="range" min="0" max="100" value="72"><span id="audio-master-value">72</span></label>
+            <label class="pause-row">MUSIQUE <input id="audio-music" type="range" min="0" max="100" value="42"><span id="audio-music-value">42</span></label>
+            <label class="pause-row">SFX <input id="audio-sfx" type="range" min="0" max="100" value="85"><span id="audio-sfx-value">85</span></label>
+            <label class="pause-row">VOIX <input id="audio-voice" type="range" min="0" max="300" value="220"><span id="audio-voice-value">220</span></label>
+          </section>
+          <section class="pause-section">
+            <h3>SAUVEGARDE</h3>
+            <p id="pause-save-status">Aucune sauvegarde de mission.</p>
+            <div class="pause-actions">
+              <button id="pause-save" type="button">SAUVEGARDER</button>
+              <button id="pause-clear-save" type="button">EFFACER</button>
+            </div>
+          </section>
+        </div>
+        <div class="pause-actions">
+          <button id="pause-resume" type="button">REPRENDRE</button>
+        </div>
+      </div>
     </div>
     <div id="damage-flash"></div>
     <div id="mission-complete" class="hidden">

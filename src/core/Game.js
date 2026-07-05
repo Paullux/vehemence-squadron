@@ -21,6 +21,14 @@ const LAUNCH_HANGAR_ASPECT = 1672 / 941;
 const AIM_DEPTH = 78;
 const AIM_RANGE_X = 22;
 const AIM_RANGE_Y = 12;
+const AUDIO_SETTINGS_KEY = 'vehemence.audio';
+const MISSION_SAVE_KEY = 'vehemence.missionSave';
+const DEFAULT_AUDIO_SETTINGS = {
+  master: 0.72,
+  music: 0.42,
+  sfx: 0.85,
+  voice: 2.2,
+};
 
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 const smoothstep = (v) => {
@@ -85,6 +93,7 @@ export class Game {
     this.missionTime = 0;
     this.bossStarted = false;
     this.missionComplete = false;
+    this.paused = false;
 
     this.hudScore = document.getElementById('score');
     this.hudSpeed = document.getElementById('speed');
@@ -97,6 +106,23 @@ export class Game {
     this.hudMissionComplete = document.getElementById('mission-complete');
     this.hudVictoryScore = document.getElementById('victory-score');
     this.hudPointerLockHint = document.getElementById('pointer-lock-hint');
+    this.pauseMenu = document.getElementById('pause-menu');
+    this.pauseResume = document.getElementById('pause-resume');
+    this.pauseSave = document.getElementById('pause-save');
+    this.pauseClearSave = document.getElementById('pause-clear-save');
+    this.pauseSaveStatus = document.getElementById('pause-save-status');
+    this.audioControls = {
+      master: document.getElementById('audio-master'),
+      music: document.getElementById('audio-music'),
+      sfx: document.getElementById('audio-sfx'),
+      voice: document.getElementById('audio-voice'),
+    };
+    this.audioLabels = {
+      master: document.getElementById('audio-master-value'),
+      music: document.getElementById('audio-music-value'),
+      sfx: document.getElementById('audio-sfx-value'),
+      voice: document.getElementById('audio-voice-value'),
+    };
     this.debriefOverlay = document.getElementById('debrief');
     this.debriefVideo = document.getElementById('debrief-video');
     this.debriefSkip = document.getElementById('debrief-skip');
@@ -112,6 +138,7 @@ export class Game {
     this.setCombatVisible(false);
     this.setEnvironmentVisible(false);
     this.updateLaunchHangarPlane();
+    this.setupPauseMenu();
 
     this._v = new THREE.Vector3();
     this._aimTarget = new THREE.Vector3();
@@ -240,6 +267,12 @@ export class Game {
   tick() {
     const dt = Math.min(this.clock.getDelta(), 0.05);
 
+    if (this.paused) {
+      this.updateHud(0);
+      this.renderer.render(this.scene, this.camera);
+      return;
+    }
+
     if (this.launching) {
       this.updateLaunch(dt);
       this.starfield.update(this.camera);
@@ -333,9 +366,118 @@ export class Game {
     // avant d'autoriser le redémarrage — sinon "tirer" sur l'écran de score
     // sauterait la vidéo avant même qu'elle démarre.
     if (this.gameOver || (this.missionComplete && this.debriefDone)) {
-      if (!this.input.fire) this.restartArmed = true;
+      const restartPressed = this.input.fire || this.input.isDown('Space');
+      if (!restartPressed) this.restartArmed = true;
       else if (this.restartArmed) location.reload();
     }
+  }
+
+  setupPauseMenu() {
+    const settings = this.loadAudioSettings();
+    for (const [key, control] of Object.entries(this.audioControls)) {
+      if (!control) continue;
+      control.value = Math.round(settings[key] * 100);
+      this.updateAudioControlLabel(key, settings[key]);
+      control.addEventListener('input', () => {
+        const next = Number(control.value) / 100;
+        settings[key] = next;
+        this.applyAudioSettings(settings);
+        this.saveAudioSettings(settings);
+        this.updateAudioControlLabel(key, next);
+      });
+    }
+    this.applyAudioSettings(settings);
+    this.updateSaveStatus();
+
+    this.pauseResume?.addEventListener('click', () => this.setPaused(false));
+    this.pauseSave?.addEventListener('click', () => this.saveMissionSnapshot());
+    this.pauseClearSave?.addEventListener('click', () => this.clearMissionSnapshot());
+
+    addEventListener('keydown', (event) => {
+      if (event.code !== 'Space') return;
+      if (this.launching || this.gameOver || this.missionComplete) return;
+      event.preventDefault();
+      this.setPaused(!this.paused);
+    });
+  }
+
+  loadAudioSettings() {
+    try {
+      const saved = JSON.parse(localStorage.getItem(AUDIO_SETTINGS_KEY));
+      const settings = { ...DEFAULT_AUDIO_SETTINGS, ...saved };
+      settings.voice = Math.max(DEFAULT_AUDIO_SETTINGS.voice, settings.voice);
+      return settings;
+    } catch {
+      return { ...DEFAULT_AUDIO_SETTINGS };
+    }
+  }
+
+  saveAudioSettings(settings) {
+    localStorage.setItem(AUDIO_SETTINGS_KEY, JSON.stringify(settings));
+  }
+
+  applyAudioSettings(settings) {
+    this.sound.setMasterVolume(settings.master);
+    this.sound.setGroupVolume('music', settings.music);
+    this.sound.setGroupVolume('sfx', settings.sfx);
+    this.sound.setGroupVolume('voice', settings.voice);
+  }
+
+  updateAudioControlLabel(key, value) {
+    if (this.audioLabels[key]) this.audioLabels[key].textContent = Math.round(value * 100);
+  }
+
+  setPaused(paused) {
+    if (this.paused === paused) return;
+    this.paused = paused;
+    this.pauseMenu?.classList.toggle('hidden', !paused);
+    this.hudPointerLockHint?.classList.add('hidden');
+    document.body.classList.toggle('cursor-hidden', !paused && !this.gameOver && !this.missionComplete);
+    if (paused) {
+      document.exitPointerLock?.();
+      this.sound.setLoop('heroEngine', { volume: 0 });
+      this.input.keys.delete('Space');
+      this.updateSaveStatus();
+    } else {
+      this.clock.getDelta();
+    }
+  }
+
+  saveMissionSnapshot() {
+    const data = {
+      savedAt: new Date().toISOString(),
+      score: this.score,
+      hp: Math.round(this.hp),
+      missionTime: Math.round(this.missionTime),
+      bossStarted: this.bossStarted,
+      bossProgress: this.bossStarted ? Number(this.boss.getProgress().toFixed(2)) : 0,
+    };
+    localStorage.setItem(MISSION_SAVE_KEY, JSON.stringify(data));
+    this.updateSaveStatus(data);
+  }
+
+  clearMissionSnapshot() {
+    localStorage.removeItem(MISSION_SAVE_KEY);
+    this.updateSaveStatus(null);
+  }
+
+  updateSaveStatus(data = undefined) {
+    if (!this.pauseSaveStatus) return;
+    let save = data;
+    if (save === undefined) {
+      try {
+        save = JSON.parse(localStorage.getItem(MISSION_SAVE_KEY));
+      } catch {
+        save = null;
+      }
+    }
+    if (!save) {
+      this.pauseSaveStatus.textContent = 'Aucune sauvegarde de mission.';
+      return;
+    }
+    const date = new Date(save.savedAt).toLocaleString('fr-FR');
+    const boss = save.bossStarted ? ` Boss ${Math.round(save.bossProgress * 100)}%.` : '';
+    this.pauseSaveStatus.textContent = `Derniere sauvegarde : ${date}. Score ${save.score}, bouclier ${save.hp}%, temps ${save.missionTime}s.${boss}`;
   }
 
   spawnMothership() {
@@ -601,6 +743,7 @@ export class Game {
 
   die() {
     this.gameOver = true;
+    this.setPaused(false);
     this.sound.explosion('medium', this.ship.group.position);
     this.explosions.spawn(this.ship.group.position);
     this.ship.group.visible = false;

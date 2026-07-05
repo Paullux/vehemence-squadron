@@ -58,8 +58,9 @@ Intention de progression :
 | Action | Clavier | Manette Xbox |
 |---|---|---|
 | Piloter | ZQSD / WASD / Flèches | Stick gauche |
-| Tirer | Espace / clic gauche (souris capturée) | RT ou A |
+| Tirer | Clic gauche (souris capturée) | RT ou A |
 | Boost | Maj / clic droit (souris capturée) | LT ou LB |
+| Pause | Espace | — |
 
 **Visée souris façon FPS** (`src/core/Input.js`) : capturée via Pointer Lock API
 (clic sur le jeu pour capturer, **Échap** pour relâcher — natif navigateur).
@@ -68,6 +69,12 @@ la page) ; un rappel HUD ("CLIQUEZ POUR CAPTURER...") s'affiche tant qu'elle
 n'est pas engagée. Une fois capturée, les deltas relatifs (`movementX/Y`)
 pilotent le réticule en continu, clavier/manette restent indépendants du
 verrou.
+
+**Menu pause** : `Espace` ouvre un panneau en jeu avec réglages audio
+persistants (`localStorage`) et sauvegarde légère de mission (score, bouclier,
+temps, boss commencé/progression). Cette sauvegarde sert pour l'instant de
+checkpoint informatif ; la reprise exacte d'un état 3D viendra avec la machine
+à états de mission.
 
 ## 6. Pipeline d'assets
 
@@ -176,6 +183,10 @@ verrou.
   pour le script à faire générer (Codex/ElevenLabs). Tant que les fichiers
   `public/audio/voice/*.wav` n'existent pas, les répliques restent silencieuses
   sans erreur (chargement paresseux, avertissement console bénin en dev).
+  Les voix sont volontairement boostées au mix (gain radio + slider pause jusqu'à
+  300%) pour rester audibles au-dessus des moteurs, lasers et musiques de boss.
+  La réplique d'arrivée du vaisseau-mère est prioritaire et baisse brièvement la
+  musique boss pour rester compréhensible.
   Tous les sons de vol (moteur, alarme bip-bip, répliques bouclier faible) sont
   **coupés dès la fin de mission ou le game over** (`updateAudio` gardé par `flying`) —
   seule la musique de victoire/défaite continue.

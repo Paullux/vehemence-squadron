@@ -90,7 +90,7 @@ function makeStaticNoiseBuffer(ctx) {
 }
 
 export class SoundManager {
-  constructor({ master = 0.72, sfx = 0.85, music = 0.42, engine = 0.5, voice = 1.28 } = {}) {
+  constructor({ master = 0.72, sfx = 0.85, music = 0.42, engine = 0.5, voice = 2.2 } = {}) {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     this.ctx = AudioContext ? new AudioContext() : null;
     this.enabled = !!this.ctx;
@@ -112,12 +112,14 @@ export class SoundManager {
     this.musicGain = this.ctx.createGain();
     this.engineGain = this.ctx.createGain();
     this.voiceGain = this.ctx.createGain();
+    this.radioOutputGain = this.ctx.createGain();
 
     this.masterGain.gain.value = master;
     this.sfxGain.gain.value = sfx;
     this.musicGain.gain.value = music;
     this.engineGain.gain.value = engine;
     this.voiceGain.gain.value = voice;
+    this.radioOutputGain.gain.value = 1.85;
 
     this.sfxGain.connect(this.masterGain);
     this.musicGain.connect(this.masterGain);
@@ -135,7 +137,8 @@ export class SoundManager {
     this.radioDrive = this.ctx.createWaveShaper();
     this.radioDrive.curve = makeDriveCurve(14);
     this.radioDrive.connect(this.radioFilter);
-    this.radioFilter.connect(this.voiceGain);
+    this.radioFilter.connect(this.radioOutputGain);
+    this.radioOutputGain.connect(this.voiceGain);
 
     this.staticNoiseBuffer = makeStaticNoiseBuffer(this.ctx);
 
@@ -204,6 +207,13 @@ export class SoundManager {
     this.masterGain.gain.setTargetAtTime(clamp01(value), this.ctx.currentTime, 0.03);
   }
 
+  setGroupVolume(group, value) {
+    if (!this.enabled) return;
+    const gain = this.getGroupGain(group);
+    const max = group === 'voice' ? 3 : 1;
+    gain.gain.setTargetAtTime(Math.max(0, Math.min(max, value)), this.ctx.currentTime, 0.03);
+  }
+
   play(name, { volume = 1, rate = 1, detune = 0, minInterval = 0, group = 'sfx' } = {}) {
     return this.playAt(name, null, { volume, rate, detune, minInterval, group });
   }
@@ -248,6 +258,7 @@ export class SoundManager {
   getGroupGain(group) {
     if (group === 'music') return this.musicGain;
     if (group === 'engine') return this.engineGain;
+    if (group === 'voice') return this.voiceGain;
     return this.sfxGain;
   }
 
@@ -307,7 +318,7 @@ export class SoundManager {
     gain.connect(this.musicGain);
     source.start();
     gain.gain.setTargetAtTime(volume, now, fade / 3);
-    this.currentMusic = { name, source, gain };
+    this.currentMusic = { name, source, gain, volume };
   }
 
   updateHeroEngine({ boostAmount = 0, forwardSpeed = 60, boosting = false }) {
@@ -356,12 +367,12 @@ export class SoundManager {
   // `rate` : vitesse de lecture (pitch lié, comme une bande analogique) — voir
   // CHARACTER_RATE. Une seule voix source enregistrée peut ainsi incarner
   // tout l'escadron.
-  async playVoiceLine(name, { volume = 1, rate = 1 } = {}) {
+  async playVoiceLine(name, { volume = 1, rate = 1, priority = false, duckMusic = false } = {}) {
     if (!this.enabled) return;
     const url = VOICE[name];
     if (!url) return;
     const now = this.ctx.currentTime;
-    if (now < this.voiceBusyUntil) return; // quelqu'un parle déjà sur la fréquence
+    if (!priority && now < this.voiceBusyUntil) return; // quelqu'un parle déjà sur la fréquence
 
     if (!this.buffers.has(name)) await this.load(name, url);
     const buffer = this.buffers.get(name);
@@ -380,6 +391,12 @@ export class SoundManager {
     gain.connect(this.radioDrive);
     source.start();
 
+    if (duckMusic && this.currentMusic) {
+      const music = this.currentMusic;
+      music.gain.gain.setTargetAtTime(music.volume * 0.28, startAt, 0.05);
+      music.gain.gain.setTargetAtTime(music.volume, startAt + duration + 0.25, 0.25);
+    }
+
     // Souffle statique, présent juste avant/après la voix (façon "ouverture
     // de fréquence"), très en retrait pour ne pas couvrir la réplique.
     const noise = this.ctx.createBufferSource();
@@ -387,8 +404,8 @@ export class SoundManager {
     noise.buffer = this.staticNoiseBuffer;
     noise.loop = true;
     noiseGain.gain.setValueAtTime(0, startAt);
-    noiseGain.gain.linearRampToValueAtTime(0.075, startAt + 0.05);
-    noiseGain.gain.setValueAtTime(0.075, startAt + duration - 0.08);
+    noiseGain.gain.linearRampToValueAtTime(0.045, startAt + 0.05);
+    noiseGain.gain.setValueAtTime(0.045, startAt + duration - 0.08);
     noiseGain.gain.linearRampToValueAtTime(0, startAt + duration + 0.1);
     noise.connect(noiseGain);
     noiseGain.connect(this.radioDrive);
@@ -412,7 +429,7 @@ export class SoundManager {
   }
 
   bossMothershipIncoming() {
-    this.playVoiceLine('fightBossMothership', { volume: 1.12, rate: 0.98 });
+    this.playVoiceLine('fightBossMothership', { volume: 2.1, rate: 0.98, priority: true, duckMusic: true });
   }
 
   // Bip-bip strident synthétisé (aucun fichier requis) : activé/désactivé

@@ -89,7 +89,7 @@ export class MothershipBoss {
         transparent: true,
         opacity: def.locked ? 0.2 : 0.95,
         blending: THREE.AdditiveBlending,
-        depthTest: false,
+        depthTest: true,
         depthWrite: false,
       })
     );
@@ -100,7 +100,7 @@ export class MothershipBoss {
         transparent: true,
         opacity: def.locked ? 0.15 : 0.9,
         blending: THREE.AdditiveBlending,
-        depthTest: false,
+        depthTest: true,
         depthWrite: false,
         side: THREE.DoubleSide,
       })
@@ -111,7 +111,7 @@ export class MothershipBoss {
       size: def.radius * 7,
       opacity: def.locked ? 0.08 : 0.32,
     });
-    halo.material.depthTest = false;
+    halo.material.depthTest = true;
     halo.renderOrder = 20;
     core.renderOrder = 21;
     ring.renderOrder = 21;
