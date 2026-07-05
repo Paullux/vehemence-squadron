@@ -8,6 +8,18 @@ const _aim = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _origin = new THREE.Vector3();
 const _attackTarget = new THREE.Vector3();
+const _zeroVelocity = new THREE.Vector2();
+
+// Choisit un membre de l'escadron au hasard parmi le joueur et les ailiers
+// vivants — évite que tous les chasseurs ennemis ignorent les ailiers pour
+// ne foncer que sur le joueur. Aléatoire uniforme plutôt que "le plus
+// proche" : sinon tous les ennemis convergent systématiquement sur le
+// même ailier (celui en pointe de formation), sans variété.
+function pickTarget(ship, wingmen) {
+  const candidates = [ship];
+  for (const w of wingmen) if (w.alive) candidates.push(w);
+  return candidates[Math.floor(Math.random() * candidates.length)];
+}
 
 // Flotte de l'Hégémonie : plus le vaisseau est gros, plus il encaisse et plus
 // il tape fort. `rotationY` dépend de chaque export Rodin (vérifié visuellement
@@ -91,6 +103,8 @@ export class Targets {
           attackOffset: new THREE.Vector2(),
           fireCooldown: rand(...def.cadence),
           hitFlash: 0,
+          target: null,
+          retargetCooldown: 0,
         };
         this.placeEnemyAhead(enemy, 0, true);
         scene.add(enemy);
@@ -130,6 +144,7 @@ export class Targets {
     enemy.userData.alive = true;
     enemy.userData.hp = def.hp;
     enemy.userData.launchedByBoss = false;
+    enemy.userData.retargetCooldown = 0; // force un nouveau choix de cible
     enemy.visible = true;
   }
 
@@ -148,13 +163,16 @@ export class Targets {
     u.hp = def.hp;
     u.launchedByBoss = true;
     u.fireCooldown = rand(0.45, 1.1);
+    u.retargetCooldown = 0; // force un nouveau choix de cible
     u.attackOffset.set(rand(-7, 7), rand(-4, 4));
     u.drift.set(rand(-1.2, 1.2), rand(-0.8, 0.8));
   }
 
   // Retourne les points marqués en traversant des anneaux cette frame.
+  // `wingmen` : ailiers vivants ou non — sert à répartir les cibles des
+  // ennemis sur tout l'escadron (joueur + ailiers), pas seulement le joueur.
   // `pools` = { light, heavy } : LaserPools ennemis selon le calibre.
-  update(dt, ship, pools, canFire, sound = null, { respawn = true, rings = true } = {}) {
+  update(dt, ship, wingmen, pools, canFire, sound = null, { respawn = true, rings = true } = {}) {
     const shipPos = ship.group.position;
     let ringScore = 0;
 
@@ -170,19 +188,29 @@ export class Targets {
         u.halo.material.opacity = 0.85 + u.hitFlash;
       }
 
+      // Cible réévaluée de temps en temps (ou si l'ailier visé est mort) —
+      // pas à chaque frame, pour éviter un ciblage nerveux/instable.
+      u.retargetCooldown -= dt;
+      const targetLost = u.target && u.target !== ship && !u.target.alive;
+      if (!u.target || targetLost || u.retargetCooldown <= 0) {
+        u.target = pickTarget(ship, wingmen);
+        u.retargetCooldown = rand(2.5, 4.5);
+      }
+      const targetPos = u.target.group.position;
+
       if (u.hasModel) {
         const speedMultiplier = u.launchedByBoss ? 2.35 : 1;
         e.position.z += def.approachSpeed * speedMultiplier * dt;
         if (u.launchedByBoss) {
           _attackTarget.set(
-            shipPos.x + u.attackOffset.x + Math.sin(u.time * 1.7) * 2.5,
-            shipPos.y + u.attackOffset.y + Math.cos(u.time * 1.3) * 1.6,
+            targetPos.x + u.attackOffset.x + Math.sin(u.time * 1.7) * 2.5,
+            targetPos.y + u.attackOffset.y + Math.cos(u.time * 1.3) * 1.6,
             e.position.z
           );
           e.position.x += (_attackTarget.x - e.position.x) * (1 - Math.exp(-2.6 * dt));
           e.position.y += (_attackTarget.y - e.position.y) * (1 - Math.exp(-2.2 * dt));
-          e.rotation.z = THREE.MathUtils.clamp((shipPos.x - e.position.x) * -0.04, -0.65, 0.65);
-          e.rotation.x = THREE.MathUtils.clamp((shipPos.y - e.position.y) * 0.035, -0.35, 0.35);
+          e.rotation.z = THREE.MathUtils.clamp((targetPos.x - e.position.x) * -0.04, -0.65, 0.65);
+          e.rotation.x = THREE.MathUtils.clamp((targetPos.y - e.position.y) * 0.035, -0.35, 0.35);
         } else {
           e.rotation.z = Math.sin(u.time * 1.6) * def.wobble;
           e.rotation.x = Math.sin(u.time * 0.9) * def.wobble * 0.3;
@@ -194,17 +222,20 @@ export class Targets {
       e.position.x += u.drift.x * dt;
       e.position.y += u.drift.y * dt;
 
-      // Tir : visée anticipée sur la trajectoire du héros + dispersion
+      // Tir : visée anticipée sur la trajectoire de la cible (joueur ou
+      // ailier) + dispersion. La progression en Z reste calée sur le
+      // joueur (rythme du rail), seul le point visé change.
       u.fireCooldown -= dt;
       if (canFire && u.alive && u.hasModel && u.fireCooldown <= 0) {
         const ahead = shipPos.z - e.position.z; // > 0 si l'ennemi est devant
         if (ahead > 80 && ahead < 600) {
           const bolt = def.bolt;
-          const t = e.position.distanceTo(shipPos) / bolt.speed;
+          const targetVelocity = u.target.velocity || _zeroVelocity;
+          const t = e.position.distanceTo(targetPos) / bolt.speed;
           _aim.set(
-            shipPos.x + ship.velocity.x * t + rand(-5, 5),
-            shipPos.y + ship.velocity.y * t + rand(-4, 4),
-            shipPos.z - ship.forwardSpeed * t
+            targetPos.x + targetVelocity.x * t + rand(-5, 5),
+            targetPos.y + targetVelocity.y * t + rand(-4, 4),
+            targetPos.z - ship.forwardSpeed * t
           );
           _dir.subVectors(_aim, e.position);
           _origin.copy(e.position).addScaledVector(_dir.clone().normalize(), def.length * 0.5);

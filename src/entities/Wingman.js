@@ -30,6 +30,11 @@ export class Wingman {
     this.hitFlash = 0;
     this.lowEnergyFired = false;
 
+    // Exposée pour la visée anticipée des ennemis quand ils ciblent cet
+    // ailier plutôt que le joueur (voir Targets.js) — même forme que
+    // PlayerShip.velocity.
+    this.velocity = new THREE.Vector2();
+
     this.prevX = 0;
     this.prevY = 0;
     this.roll = 0;
@@ -104,11 +109,11 @@ export class Wingman {
     p.z = _target.z;
 
     // Roulis/tangage déduits du mouvement réel, lissés
-    const vx = dt > 0 ? (p.x - this.prevX) / dt : 0;
-    const vy = dt > 0 ? (p.y - this.prevY) / dt : 0;
+    this.velocity.x = dt > 0 ? (p.x - this.prevX) / dt : 0;
+    this.velocity.y = dt > 0 ? (p.y - this.prevY) / dt : 0;
     const kr = 1 - Math.exp(-6 * dt);
-    this.roll += (THREE.MathUtils.clamp(-vx * 0.028, -0.8, 0.8) - this.roll) * kr;
-    this.pitch += (THREE.MathUtils.clamp(vy * 0.012, -0.35, 0.35) - this.pitch) * kr;
+    this.roll += (THREE.MathUtils.clamp(-this.velocity.x * 0.028, -0.8, 0.8) - this.roll) * kr;
+    this.pitch += (THREE.MathUtils.clamp(this.velocity.y * 0.012, -0.35, 0.35) - this.pitch) * kr;
     this.mesh.rotation.z = this.roll;
     this.mesh.rotation.x = this.pitch;
 

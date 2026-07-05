@@ -283,6 +283,7 @@ export class Game {
       this.score += this.targets.update(
         dt,
         this.ship,
+        this.wingmen,
         { light: this.enemyLasers, heavy: this.enemyHeavyLasers },
         !this.gameOver,
         this.sound
@@ -308,6 +309,7 @@ export class Game {
       this.targets.update(
         dt,
         this.ship,
+        this.wingmen,
         { light: this.enemyLasers, heavy: this.enemyHeavyLasers },
         !this.gameOver,
         this.sound,
