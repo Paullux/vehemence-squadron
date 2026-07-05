@@ -2,3 +2,8 @@ node_modules/
 dist/
 .DS_Store
 *.log
+
+# Sources brutes de la pipeline d'assets (concept art, frames, exports LTX
+# non traités) : jamais chargées par le jeu, gardées hors du dépôt dans
+# "I:\jeu Space Opera Threejs - Source\pipeline-assets\".
+pipeline-assets/
