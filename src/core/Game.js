@@ -881,7 +881,7 @@ export class Game {
       next.searchParams.set('difficulty', this.difficultyId);
       next.searchParams.set('score', String(this.score));
       next.searchParams.set('autostart', '1');
-      next.searchParams.set('skipBrief', '1');
+      next.searchParams.delete('skipBrief');
       location.href = next.toString();
       return;
     }
