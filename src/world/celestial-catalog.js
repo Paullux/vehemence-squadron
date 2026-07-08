@@ -14,6 +14,12 @@ export const STARS = {
     texture: '/textures/stars/big_red_star/star_albedo.png',
     radius: 500,
     haloColor: 0xff4422,
+    coronaColor: 0xff7a22,
+    coronaScale: 7.4,
+    coronaOpacity: 0.34,
+    ringColor: 0xffc08a,
+    ringTilt: 1.08,
+    ringRotation: 0.32,
     lightColor: 0xff7755,
     lightIntensity: 2.2,
     pulse: true,
@@ -36,6 +42,17 @@ export const SYSTEMS = {
       { id: 'desert_planete', position: [-700, 250, -1900] },
       { id: 'ocean_planete', position: [700, -380, -2800] },
       { id: 'cratere_moon', position: [-700, 250, -1900], orbit: { around: 0, radius: 430, speed: 0.03, tilt: 0.25 } },
+    ],
+  },
+  kharos_red_corona: {
+    stars: [
+      { id: 'big_red_star', position: [0, 260, -1850], main: true, lightIntensity: 1.65, ringTilt: 1.34, ringRotation: 0.08 },
+      { id: 'sun_star', position: [1250, 260, -3100], lightIntensity: 0.6 },
+    ],
+    planets: [
+      { id: 'desert_planete', position: [-980, 180, -2300] },
+      { id: 'cratere_moon', position: [-980, 180, -2300], orbit: { around: 0, radius: 430, speed: 0.03, tilt: 0.25 } },
+      { id: 'ocean_planete', position: [920, -430, -3000] },
     ],
   },
 };

@@ -28,6 +28,28 @@ avancer l'histoire.
   elles doivent arriver comme un événement narratif, quand l'ennemi est affaibli et
   que les héros sont assez forts pour descendre du ciel.
 
+### Thème écologique et retournement moral
+
+La guerre contre l'Hégémonie du Vide ne doit pas rester un conflit simple entre
+"héros confédérés" et "ennemis barbares". Après une bataille au sol sur une planète
+de l'Hégémonie, le joueur peut interroger un prisonnier ennemi. Ce prisonnier révèle
+une autre lecture de l'histoire : la **Confédération des Mondes Libres** terraformait
+des planètes entières au mépris des formes de vie préexistantes, écrasant des
+écosystèmes lents, invisibles ou incompris pour rendre ces mondes habitables par les
+humains.
+
+Dans ce récit, **la Terre** est devenue presque une légende : le monde d'origine,
+perdu, détruit par les humains eux-mêmes. Le prisonnier explique que le sort de la
+Terre n'est pas une exception ancienne mais un modèle qui se répète. Si rien ne
+change, **Kharos connaîtra dans un millénaire le même destin** : épuisement,
+artificialisation, disparition des vivants natifs, puis fuite vers un autre monde.
+
+Message de fond : l'humanité parcourt l'espace de monde en monde pour survivre,
+mais sa survie repose encore sur la destruction de ce qu'elle touche. Le jeu peut
+porter cette idée sans transformer le joueur en coupable immédiat : Lynx découvre
+progressivement que la propagande confédérée, l'héroïsme militaire et même la notion
+de "mondes libres" masquent une logique coloniale et extractive plus profonde.
+
 ## 3. Piliers de design
 
 1. **Sensations d'arcade avant tout** — 60 FPS, réponse immédiate, lisibilité.
@@ -50,7 +72,7 @@ Intention de progression :
    *Véhémence*.
 3. **Percer les mondes occupés** — rail planétaire : assauts basse altitude, corridors
    civils, neutralisation de défenses de surface.
-4. **Descendre du ciel** — combat au sol : bataille ultime, quand l'Empire du Vide est
+4. **Descendre du ciel** — combat au sol : bataille ultime, quand l'Hégémonie du Vide est
    assez affaibli pour qu'un assaut terrestre ait du sens.
 
 ## 5. Contrôles (axe Y inversé, façon aviation)
@@ -104,7 +126,7 @@ checkpoint informatif ; la reprise exacte d'un état 3D viendra avec la machine
 - **Flux de lancement actuel** : intro vidéo de recrutement → briefing mission de 30 s
   (préchargement GLB + image de hangar) → sortie du *Véhémence* (~3,6 s) → gameplay.
   Le briefing actuel annonce la mission : libérer au maximum la route commerciale de
-  Kharos-3 occupée par l'Empire/Hégémonie du Vide.
+  Kharos-3 occupée par l'Hégémonie du Vide.
 - **Sortie du Véhémence** : utilise `public/images/interieur_vehemence.png` comme
   texture transparente dans la scène Three.js, rendue devant le ciel étoilé mais
   derrière les vaisseaux. Les Aquila sortent du hangar avec traînées cyan et overlay
@@ -162,6 +184,28 @@ checkpoint informatif ; la reprise exacte d'un état 3D viendra avec la machine
   pas terminée ou sautée (`this.debriefDone`), pour ne pas la zapper par inadvertance
   depuis l'écran de score. Voir aussi `public/cinematics/mission_debrief/` pour le
   script complet du prochain debrief (storyboard + prompts LTX).
+- **Niveau 2 : Couronne Rouge** (`src/entities/AsteroidField.js`) : mission sur rail
+  dans le système `kharos_red_corona`, autour de la géante rouge. Le joueur traverse
+  un champ d'astéroïdes avec tourelles, puis affronte une base-astéroïde camouflée.
+  Les relais rouges secondaires doivent être détruits avant que le noyau final soit
+  exposé ; sa destruction déclenche **COURONNE SECURISEE**. Le verrou du noyau ne doit
+  compter que les points faibles secondaires, pas le noyau lui-même.
+  Prochaine passe asset : remplacer les primitives de tourelles/hangars par deux
+  modèles Rodin dédiés :
+  - **Canon plasma d'astéroïde** (`public/space_ships/ennemies/asteroid_plasma_cannon/`)
+    modèle unique réutilisable à plusieurs échelles. Les parties destructibles doivent
+    être rouges/émissives et très lisibles : ce sont les points à détruire sur la
+    base-astéroïde géante.
+  - **Hangar d'astéroïde** (`public/space_ships/ennemies/asteroid_hangar/`) module
+    encastré dans la roche, avec bouche de lancement claire. Les chasseurs ennemis
+    doivent décoller visiblement de ces hangars sur l'astéroïde géant.
+- **Cinématique de fin du niveau 2** : `completeMission()` utilise maintenant
+  `public/cinematics/second_mission_end/red_corona_escape_seedance.mp4`, générée via
+  Replicate / `bytedance/seedance-1.5-pro` depuis l'image source
+  `red_corona_escape_ai.png`. Les prompts et le storyboard sont conservés dans
+  `public/cinematics/second_mission_end/` et copiés côté source dans
+  `I:\jeu Space Opera Threejs - Source\pipeline-assets\cinematics\second_mission_end\`.
+  L'image IA reste disponible comme fallback si le MP4 ne charge pas.
 - **Bouclier du héros : 100 PV** (laser ennemi -12, collision -25), régénération
   +4 PV/s après 5 s sans dégât. HUD : barre de bouclier (vert/orange/rouge), vignette
   rouge d'impact, secousse caméra. **Game over** avec score final, restart ESPACE/A.

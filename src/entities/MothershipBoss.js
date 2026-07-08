@@ -284,7 +284,7 @@ export class MothershipBoss {
       if (wp.destroyed || !this.isWeakPointUnlocked(wp)) continue;
       wp.node.getWorldPosition(_world);
       if (laser.position.distanceToSquared(_world) > wp.radius * wp.radius) continue;
-      wp.hp -= 1;
+      wp.hp -= Math.max(1, laser.userData.damage || 1);
       this.hitFlash = 0.35;
       sound?.armorHit(_world);
       if (wp.hp <= 0) {

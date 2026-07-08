@@ -21,7 +21,7 @@ export class Environment {
     this.stars = [];
     for (const cfg of sys.stars) {
       const def = STARS[cfg.id];
-      const star = new Star(def);
+      const star = new Star({ ...def, ...cfg });
       star.baseOffset = new THREE.Vector3().fromArray(cfg.position);
       scene.add(star.group);
       this.stars.push(star);

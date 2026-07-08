@@ -11,14 +11,41 @@ const intro = document.getElementById('intro');
 const introVideo = document.getElementById('intro-video');
 const introPlay = document.getElementById('intro-play');
 const introStart = document.getElementById('intro-start');
+const mission01 = document.getElementById('mission-01');
+const mission02 = document.getElementById('mission-02');
+const difficultyPilot = document.getElementById('difficulty-pilot');
+const difficultyCadet = document.getElementById('difficulty-cadet');
 const introSkip = document.getElementById('intro-skip');
 const missionBrief = document.getElementById('mission-brief');
+const missionKicker = document.getElementById('mission-kicker');
+const missionTitle = document.getElementById('mission-title');
+const missionCopy = document.getElementById('mission-copy');
+const missionObjectiveText = document.getElementById('mission-objective-text');
 const missionProgress = document.getElementById('mission-progress');
 const missionStatus = document.getElementById('mission-status');
 const hud = document.getElementById('hud');
 
 const MODEL_PRELOADS = [HERO_MODEL, ...Object.values(ENEMY_TYPES), MOTHERSHIP_MODEL];
 const MIN_BRIEF_DURATION = 30000;
+let selectedMission = 'mission01';
+let selectedDifficulty = 'pilot';
+
+const MISSION_BRIEFS = {
+  mission01: {
+    kicker: 'BRIEFING DE MISSION // ROUTE KHAROS-3',
+    title: 'LIBERER LA ROUTE COMMERCIALE',
+    copy:
+      "Le Vehemence ouvre une fenêtre de lancement. Votre escadron doit arriver à libérer au maximum cette route commerciale de l'Hégémonie du Vide.",
+    objective: "Abattre les patrouilles, tenir le corridor, préserver l'escadron Aquila.",
+  },
+  mission02: {
+    kicker: 'BRIEFING DE MISSION // COURONNE ROUGE',
+    title: 'INFILTRER LE CHAMP DE DEBRIS',
+    copy:
+      "Les restes du vaisseau-mere dérivent vers la géante rouge. Aquila doit traverser le champ d'astéroïdes et neutraliser la base camouflée de l'Hégémonie.",
+    objective: 'Eviter les astéroïdes, détruire les tourelles rouges, faire exploser la base-astéroïde.',
+  },
+};
 
 function preloadImage(path) {
   return new Promise((resolve) => {
@@ -29,9 +56,30 @@ function preloadImage(path) {
   });
 }
 
-async function startGame() {
+function setDifficulty(difficulty) {
+  selectedDifficulty = difficulty;
+  difficultyPilot.classList.toggle('active', difficulty === 'pilot');
+  difficultyCadet.classList.toggle('active', difficulty === 'cadet');
+  difficultyPilot.setAttribute('aria-pressed', difficulty === 'pilot' ? 'true' : 'false');
+  difficultyCadet.setAttribute('aria-pressed', difficulty === 'cadet' ? 'true' : 'false');
+}
+
+function setMission(missionId) {
+  selectedMission = missionId;
+  mission01.classList.toggle('active', missionId === 'mission01');
+  mission02.classList.toggle('active', missionId === 'mission02');
+  mission01.setAttribute('aria-pressed', missionId === 'mission01' ? 'true' : 'false');
+  mission02.setAttribute('aria-pressed', missionId === 'mission02' ? 'true' : 'false');
+}
+
+async function startGame(difficulty = selectedDifficulty) {
   if (game || starting) return;
   starting = true;
+  const brief = MISSION_BRIEFS[selectedMission];
+  missionKicker.textContent = brief.kicker;
+  missionTitle.textContent = brief.title;
+  missionCopy.textContent = brief.copy;
+  missionObjectiveText.textContent = brief.objective;
   introVideo.pause();
   intro.classList.add('hidden');
   missionBrief.classList.remove('hidden');
@@ -60,7 +108,7 @@ async function startGame() {
   // game over / à la fin de mission pour cliquer les boutons de l'écran.
   document.body.classList.add('cursor-hidden');
 
-  game = new Game(document.getElementById('app'));
+  game = new Game(document.getElementById('app'), { difficulty, missionId: selectedMission });
   // Accès debug depuis la console du navigateur
   window.game = game;
   game.start();
@@ -79,10 +127,14 @@ async function playIntro() {
 }
 
 introPlay.addEventListener('click', playIntro);
-introStart.addEventListener('click', startGame);
-introSkip.addEventListener('click', startGame);
-introVideo.addEventListener('ended', startGame);
-introVideo.addEventListener('error', startGame);
+mission01.addEventListener('click', () => setMission('mission01'));
+mission02.addEventListener('click', () => setMission('mission02'));
+difficultyPilot.addEventListener('click', () => setDifficulty('pilot'));
+difficultyCadet.addEventListener('click', () => setDifficulty('cadet'));
+introStart.addEventListener('click', () => startGame());
+introSkip.addEventListener('click', () => startGame());
+introVideo.addEventListener('ended', () => startGame());
+introVideo.addEventListener('error', () => startGame());
 
 addEventListener('keydown', (event) => {
   if (game || starting) return;

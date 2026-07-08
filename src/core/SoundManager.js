@@ -51,6 +51,7 @@ const VOICE = {
   lowEnergyCobra: `${VOICE_PATH}low_energy_cobra.wav`,
   lowEnergyCorbeau: `${VOICE_PATH}low_energy_corbeau.wav`,
   fightBossMothership: `${VOICE_PATH}fight_boss_mothership.wav`,
+  mission02CommanderDebrief: '/cinematics/second_mission_end/discours_debrief.wav',
 };
 
 const KILL_LINES = ['kill1', 'kill2', 'kill3'];
@@ -368,15 +369,15 @@ export class SoundManager {
   // CHARACTER_RATE. Une seule voix source enregistrée peut ainsi incarner
   // tout l'escadron.
   async playVoiceLine(name, { volume = 1, rate = 1, priority = false, duckMusic = false } = {}) {
-    if (!this.enabled) return;
+    if (!this.enabled) return null;
     const url = VOICE[name];
-    if (!url) return;
+    if (!url) return null;
     const now = this.ctx.currentTime;
-    if (!priority && now < this.voiceBusyUntil) return; // quelqu'un parle déjà sur la fréquence
+    if (!priority && now < this.voiceBusyUntil) return null; // quelqu'un parle déjà sur la fréquence
 
     if (!this.buffers.has(name)) await this.load(name, url);
     const buffer = this.buffers.get(name);
-    if (!buffer) return; // fichier pas encore livré — silence, pas d'erreur
+    if (!buffer) return null; // fichier pas encore livré — silence, pas d'erreur
 
     const duration = buffer.duration / rate; // durée réelle une fois la vitesse appliquée
     const startAt = this.ctx.currentTime;
@@ -411,6 +412,8 @@ export class SoundManager {
     noiseGain.connect(this.radioDrive);
     noise.start(startAt);
     noise.stop(startAt + duration + 0.15);
+
+    return { source, duration };
   }
 
   enemyKilled() {
@@ -430,6 +433,15 @@ export class SoundManager {
 
   bossMothershipIncoming() {
     this.playVoiceLine('fightBossMothership', { volume: 2.1, rate: 0.98, priority: true, duckMusic: true });
+  }
+
+  mission02CommanderDebrief() {
+    return this.playVoiceLine('mission02CommanderDebrief', {
+      volume: 1.95,
+      rate: 1,
+      priority: true,
+      duckMusic: true,
+    });
   }
 
   // Bip-bip strident synthétisé (aucun fichier requis) : activé/désactivé

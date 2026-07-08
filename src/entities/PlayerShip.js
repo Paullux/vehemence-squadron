@@ -2,11 +2,11 @@ import * as THREE from 'three';
 import { loadShipModel } from '../core/ShipModel.js';
 import { makeHaloSprite } from '../core/halo.js';
 
-const BOUND_X = 16;
-const BOUND_Y = 9;
+const BOUND_X = 26;
+const BOUND_Y = 15;
 const BASE_SPEED = 60;
 const BOOST_SPEED = 130;
-const MAX_LATERAL = 30;
+const MAX_LATERAL = 42;
 
 // Modèle Rodin du chasseur Aquila — partagé par le joueur et ses ailiers PNJ.
 // Rodin exporte l'émissif à part. Ce GLB sort nez vers +Z (vérifié contre

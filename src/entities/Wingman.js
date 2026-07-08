@@ -73,13 +73,13 @@ export class Wingman {
     if (this.hp <= 0) this.alive = false; // Game.js déclenche l'explosion au moment de l'impact
   }
 
-  update(dt, player, targets, lasers, sound = null) {
+  update(dt, player, targets, lasers, sound = null, tuning = {}) {
     if (!this.alive) return;
 
     // Régénération du bouclier après un répit sans dégât (mêmes règles que le joueur)
     this.timeSinceDamage += dt;
     if (this.timeSinceDamage > REGEN_DELAY) {
-      this.hp = Math.min(MAX_HP, this.hp + REGEN_RATE * dt);
+      this.hp = Math.min(MAX_HP, this.hp + REGEN_RATE * (tuning.regenRateMultiplier || 1) * dt);
     }
     if (this.hitFlash > 0) this.hitFlash = Math.max(0, this.hitFlash - dt);
     this.halo.material.opacity = 0.16 + this.hitFlash * 0.7;
