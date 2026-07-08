@@ -1,5 +1,6 @@
 import { Game } from './core/Game.js';
 import { preloadShipModels } from './core/ShipModel.js';
+import { assetUrl } from './core/assetUrl.js';
 import { HERO_MODEL } from './entities/PlayerShip.js';
 import { ENEMY_TYPES } from './entities/Targets.js';
 import { MOTHERSHIP_MODEL } from './entities/MothershipBoss.js';
@@ -93,7 +94,7 @@ async function startGame(difficulty = selectedDifficulty) {
 
   await Promise.all([
     preloadShipModels(MODEL_PRELOADS),
-    preloadImage('/images/interieur_vehemence.png'),
+    preloadImage(assetUrl('/images/interieur_vehemence.png')),
     new Promise((resolve) => setTimeout(resolve, MIN_BRIEF_DURATION)),
   ]);
   clearInterval(progressTimer);

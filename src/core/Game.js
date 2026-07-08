@@ -791,7 +791,9 @@ export class Game {
     this.debriefAi?.classList.add('hidden');
     this.debriefCommander?.classList.add('hidden');
     this.debriefVideo.classList.remove('hidden');
-    this.debriefVideo.src = DEBRIEF_VIDEO_BY_MISSION[this.missionId] || DEBRIEF_VIDEO_BY_MISSION.mission01;
+    this.debriefVideo.src = assetUrl(
+      DEBRIEF_VIDEO_BY_MISSION[this.missionId] || DEBRIEF_VIDEO_BY_MISSION.mission01
+    );
     this.debriefVideo.currentTime = 0;
     this.debriefVideo.play().catch(() => this.endDebrief());
     this.debriefVideo.addEventListener(
