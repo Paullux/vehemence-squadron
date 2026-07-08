@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { loadShipModel } from '../core/ShipModel.js';
 import { makeHaloSprite } from '../core/halo.js';
-import { HERO_MODEL } from './PlayerShip.js';
+import { HERO_MODEL, createAquilaLampRig } from './PlayerShip.js';
 import { MAX_HP, REGEN_DELAY, REGEN_RATE } from '../core/combat.js';
 
 const _target = new THREE.Vector3();
@@ -48,10 +48,12 @@ export class Wingman {
     );
     placeholder.rotation.x = -Math.PI / 2;
     this.mesh.add(placeholder);
+    this.lampRig = createAquilaLampRig({ headlightIntensity: 58, markerIntensity: 4 });
+    this.mesh.add(this.lampRig);
     loadShipModel(HERO_MODEL)
       .then((model) => {
         this.mesh.clear();
-        this.mesh.add(model);
+        this.mesh.add(model, this.lampRig);
       })
       .catch((err) => console.error('Modèle ailier indisponible — placeholder conservé', err));
 
@@ -83,6 +85,7 @@ export class Wingman {
     }
     if (this.hitFlash > 0) this.hitFlash = Math.max(0, this.hitFlash - dt);
     this.halo.material.opacity = 0.16 + this.hitFlash * 0.7;
+    this.lampRig.userData.headlight.intensity = 58 + this.hitFlash * 32;
 
     // Réplique radio "bouclier faible", une seule fois par épisode critique
     // (hystérésis : re-armée seulement après être remonté au-dessus de 60%)

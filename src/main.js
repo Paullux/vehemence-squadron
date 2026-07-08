@@ -48,6 +48,13 @@ const MISSION_BRIEFS = {
   },
 };
 
+const launchParams = new URLSearchParams(location.search);
+const requestedMission = launchParams.get('mission');
+const requestedDifficulty = launchParams.get('difficulty');
+const requestedScore = Math.max(0, Math.floor(Number(launchParams.get('score')) || 0));
+const shouldAutostart = launchParams.get('autostart') === '1';
+const shouldSkipBrief = launchParams.get('skipBrief') === '1';
+
 function preloadImage(path) {
   return new Promise((resolve) => {
     const img = new Image();
@@ -73,7 +80,7 @@ function setMission(missionId) {
   mission02.setAttribute('aria-pressed', missionId === 'mission02' ? 'true' : 'false');
 }
 
-async function startGame(difficulty = selectedDifficulty) {
+async function startGame(difficulty = selectedDifficulty, options = {}) {
   if (game || starting) return;
   starting = true;
   const brief = MISSION_BRIEFS[selectedMission];
@@ -87,15 +94,16 @@ async function startGame(difficulty = selectedDifficulty) {
   missionStatus.textContent = 'CHARGEMENT DES APPAREILS 3D';
   missionProgress.style.transform = 'scaleX(0.08)';
   const briefStartedAt = performance.now();
+  const briefDuration = options.skipBrief ? 1200 : MIN_BRIEF_DURATION;
   const progressTimer = setInterval(() => {
     const elapsed = performance.now() - briefStartedAt;
-    missionProgress.style.transform = `scaleX(${Math.min(0.94, elapsed / MIN_BRIEF_DURATION)})`;
+    missionProgress.style.transform = `scaleX(${Math.min(0.94, elapsed / briefDuration)})`;
   }, 100);
 
   await Promise.all([
     preloadShipModels(MODEL_PRELOADS),
     preloadImage(assetUrl('/images/interieur_vehemence.png')),
-    new Promise((resolve) => setTimeout(resolve, MIN_BRIEF_DURATION)),
+    new Promise((resolve) => setTimeout(resolve, briefDuration)),
   ]);
   clearInterval(progressTimer);
 
@@ -109,7 +117,11 @@ async function startGame(difficulty = selectedDifficulty) {
   // game over / à la fin de mission pour cliquer les boutons de l'écran.
   document.body.classList.add('cursor-hidden');
 
-  game = new Game(document.getElementById('app'), { difficulty, missionId: selectedMission });
+  game = new Game(document.getElementById('app'), {
+    difficulty,
+    missionId: selectedMission,
+    initialScore: options.initialScore || 0,
+  });
   // Accès debug depuis la console du navigateur
   window.game = game;
   game.start();
@@ -136,6 +148,12 @@ introStart.addEventListener('click', () => startGame());
 introSkip.addEventListener('click', () => startGame());
 introVideo.addEventListener('ended', () => startGame());
 introVideo.addEventListener('error', () => startGame());
+
+if (requestedMission === 'mission01' || requestedMission === 'mission02') setMission(requestedMission);
+if (requestedDifficulty === 'pilot' || requestedDifficulty === 'cadet') setDifficulty(requestedDifficulty);
+if (shouldAutostart) {
+  setTimeout(() => startGame(selectedDifficulty, { skipBrief: shouldSkipBrief, initialScore: requestedScore }), 0);
+}
 
 addEventListener('keydown', (event) => {
   if (game || starting) return;

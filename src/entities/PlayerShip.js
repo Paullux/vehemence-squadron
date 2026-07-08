@@ -24,6 +24,30 @@ const PLAYER_MODEL_GUNS = [
 ];
 const PLAYER_MODEL_ENGINE_Z = 4.3;
 
+export function createAquilaLampRig({ scale = 1, headlightIntensity = 72, markerIntensity = 5 } = {}) {
+  const rig = new THREE.Group();
+
+  const headlight = new THREE.SpotLight(0xd8f4ff, headlightIntensity, 190 * scale, Math.PI / 7.5, 0.55, 1.25);
+  headlight.position.set(0, 0.35 * scale, -3.2 * scale);
+  const headlightTarget = new THREE.Object3D();
+  headlightTarget.position.set(0, -0.35 * scale, -85 * scale);
+  headlight.target = headlightTarget;
+
+  const cockpitGlow = new THREE.PointLight(0x86ecff, markerIntensity * 1.2, 22 * scale, 1.7);
+  cockpitGlow.position.set(0, 0.9 * scale, -0.5 * scale);
+
+  const portLamp = new THREE.PointLight(0xff4455, markerIntensity, 18 * scale, 1.8);
+  portLamp.position.set(-3.7 * scale, -0.2 * scale, -1.1 * scale);
+
+  const starboardLamp = new THREE.PointLight(0x55ff99, markerIntensity, 18 * scale, 1.8);
+  starboardLamp.position.set(3.7 * scale, -0.2 * scale, -1.1 * scale);
+
+  rig.add(headlight, headlightTarget, cockpitGlow, portLamp, starboardLamp);
+  rig.userData.headlight = headlight;
+  rig.userData.markerLights = [cockpitGlow, portLamp, starboardLamp];
+  return rig;
+}
+
 export class PlayerShip {
   constructor(scene) {
     // group = position dans le monde, mesh = orientation visuelle (roulis/tangage)
@@ -111,12 +135,14 @@ export class PlayerShip {
 
     const engineLight = new THREE.PointLight(0x55ddff, 30, 20, 1.8);
     engineLight.position.set(0, 0, 4.5);
+    this.engineLight = engineLight;
+    this.lampRig = createAquilaLampRig({ headlightIntensity: 82, markerIntensity: 6 });
 
     // La coque est isolée dans son propre groupe : le modèle Rodin la remplace,
     // la lueur moteur et les canons restent en place.
     this.hull = new THREE.Group();
     this.hull.add(nose, body, cockpit, wingL, wingR, podL, podR, finL, finR);
-    this.mesh.add(this.hull, glow, engineLight);
+    this.mesh.add(this.hull, glow, engineLight, this.lampRig);
 
     this.gunOffsets = [
       new THREE.Vector3(-4.5, -0.85, -1.4),
@@ -147,6 +173,8 @@ export class PlayerShip {
 
     const flicker = 1 + this.boostAmount * 0.8 + Math.sin(performance.now() * 0.02) * 0.06;
     this.engineGlow.scale.setScalar(flicker);
+    this.engineLight.intensity = 30 + this.boostAmount * 28;
+    this.lampRig.userData.headlight.intensity = 82 + this.boostAmount * 24;
 
     // Le halo s'intensifie avec le boost
     this.halo.material.opacity = 0.22 + this.boostAmount * 0.15;

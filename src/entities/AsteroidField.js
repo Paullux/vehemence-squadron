@@ -74,10 +74,26 @@ export class AsteroidField {
     asteroidAlbedo.wrapT = THREE.RepeatWrapping;
     asteroidAlbedo.repeat.set(2.2, 2.2);
 
+    const asteroidEmission = textureLoader.load(assetUrl('/textures/asteroids/red_corona_asteroid_emission.png'));
+    asteroidEmission.colorSpace = THREE.SRGBColorSpace;
+    asteroidEmission.wrapS = THREE.RepeatWrapping;
+    asteroidEmission.wrapT = THREE.RepeatWrapping;
+    asteroidEmission.repeat.copy(asteroidAlbedo.repeat);
+
+    const asteroidNormal = textureLoader.load(assetUrl('/textures/asteroids/red_corona_asteroid_normal.png'));
+    asteroidNormal.wrapS = THREE.RepeatWrapping;
+    asteroidNormal.wrapT = THREE.RepeatWrapping;
+    asteroidNormal.repeat.copy(asteroidAlbedo.repeat);
+
     this.rockMat = new THREE.MeshStandardMaterial({
-      color: 0x7b7067,
+      color: 0xffffff,
       map: asteroidAlbedo,
-      roughness: 0.92,
+      emissive: 0xff3a13,
+      emissiveMap: asteroidEmission,
+      emissiveIntensity: 1.75,
+      normalMap: asteroidNormal,
+      normalScale: new THREE.Vector2(1.35, 1.35),
+      roughness: 0.86,
       metalness: 0.08,
       flatShading: true,
     });

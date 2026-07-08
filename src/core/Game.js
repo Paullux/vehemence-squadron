@@ -72,6 +72,7 @@ export class Game {
     this.clock = new THREE.Clock();
     this.input = new Input(this.renderer.domElement);
     this.sound = new SoundManager();
+    this.difficultyId = options.difficulty || 'pilot';
     this.difficulty = getDifficulty(options.difficulty);
     this.missionId = options.missionId || 'mission01';
 
@@ -97,11 +98,12 @@ export class Game {
     this.environment = new Environment(this.scene, this.camera, {
       systemId: this.missionId === 'mission02' ? 'kharos_red_corona' : 'kharos_binary',
     });
+    this.buildMissionLighting();
 
     this.buildReticles();
     this.buildLaunchSequence();
 
-    this.score = 0;
+    this.score = Math.max(0, Math.floor(Number(options.initialScore) || 0));
     this.fireCooldown = 0;
     this.shake = 0;
     this.hp = MAX_HP;
@@ -207,6 +209,21 @@ export class Game {
     this.aimFarReticle = far;
     this.aimGroup.add(near, far);
     this.scene.add(this.aimGroup);
+  }
+
+  buildMissionLighting() {
+    if (this.missionId !== 'mission02') return;
+
+    const coronaFill = new THREE.HemisphereLight(0xff8a55, 0x251018, 0.72);
+    this.scene.add(coronaFill);
+
+    const sideGlow = new THREE.DirectionalLight(0xff7040, 1.15);
+    sideGlow.position.set(-0.35, 0.45, 0.85).normalize();
+    this.scene.add(sideGlow);
+
+    const cockpitFill = new THREE.PointLight(0xff6a35, 95, 520, 1.35);
+    cockpitFill.position.set(0, 5, 28);
+    this.camera.add(cockpitFill);
   }
 
   buildLaunchSequence() {
@@ -858,6 +875,20 @@ export class Game {
     this.debriefCommander?.classList.add('hidden');
     this.debriefSkip?.classList.add('hidden');
     this.debriefOverlay?.classList.add('hidden');
+    if (this.missionId === 'mission01') {
+      const next = new URL(location.href);
+      next.searchParams.set('mission', 'mission02');
+      next.searchParams.set('difficulty', this.difficultyId);
+      next.searchParams.set('score', String(this.score));
+      next.searchParams.set('autostart', '1');
+      next.searchParams.set('skipBrief', '1');
+      location.href = next.toString();
+      return;
+    }
+    if (this.missionId === 'mission02') {
+      location.href = `${location.origin}${location.pathname}`;
+      return;
+    }
     this.hudMissionComplete.classList.remove('hidden');
   }
 
