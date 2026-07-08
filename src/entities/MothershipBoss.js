@@ -201,11 +201,12 @@ export class MothershipBoss {
     this.group.position.set(0, 18, playerZ - 620);
   }
 
-  update(dt, ship, pools, canFire, sound = null) {
+  update(dt, ship, pools, canFire, sound = null, { enemyAggressionMultiplier = 1 } = {}) {
     if (!this.active || this.defeated) return 0;
+    const aggression = Math.max(0.25, enemyAggressionMultiplier);
 
     this.time += dt;
-    this.updateLaunchCooldown(dt);
+    this.updateLaunchCooldown(dt, aggression);
     this.arrival = Math.min(1, this.arrival + dt * 0.18);
     const orbit = Math.sin(this.time * 0.22);
     const turnProgress = Math.min(1, this.time / PRESENTATION_TURN_DURATION);
@@ -231,7 +232,7 @@ export class MothershipBoss {
       if (wp.node.visible) wp.node.lookAt(ship.group.position);
     }
 
-    this.fireCooldown -= dt;
+    this.fireCooldown -= dt * aggression;
     if (canFire && this.fireCooldown <= 0) {
       this.fireAtPlayer(ship, pools.heavy, sound);
       this.fireCooldown = 1.25 + Math.random() * 0.9;
@@ -250,9 +251,9 @@ export class MothershipBoss {
     return _world.clone();
   }
 
-  updateLaunchCooldown(dt) {
+  updateLaunchCooldown(dt, aggression = 1) {
     if (!this.active || this.defeated) return;
-    this.fighterLaunchCooldown -= dt;
+    this.fighterLaunchCooldown -= dt * aggression;
   }
 
   fireAtPlayer(ship, pool, sound) {

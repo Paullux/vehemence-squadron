@@ -4,6 +4,7 @@ import { assetUrl } from './core/assetUrl.js';
 import { HERO_MODEL } from './entities/PlayerShip.js';
 import { ENEMY_TYPES } from './entities/Targets.js';
 import { MOTHERSHIP_MODEL } from './entities/MothershipBoss.js';
+import { VEHEMENCE_MODEL } from './entities/VehemenceDefense.js';
 
 let game = null;
 let starting = false;
@@ -14,6 +15,7 @@ const introPlay = document.getElementById('intro-play');
 const introStart = document.getElementById('intro-start');
 const mission01 = document.getElementById('mission-01');
 const mission02 = document.getElementById('mission-02');
+const mission03 = document.getElementById('mission-03');
 const difficultyPilot = document.getElementById('difficulty-pilot');
 const difficultyCadet = document.getElementById('difficulty-cadet');
 const introSkip = document.getElementById('intro-skip');
@@ -26,7 +28,7 @@ const missionProgress = document.getElementById('mission-progress');
 const missionStatus = document.getElementById('mission-status');
 const hud = document.getElementById('hud');
 
-const MODEL_PRELOADS = [HERO_MODEL, ...Object.values(ENEMY_TYPES), MOTHERSHIP_MODEL];
+const MODEL_PRELOADS = [HERO_MODEL, ...Object.values(ENEMY_TYPES), MOTHERSHIP_MODEL, VEHEMENCE_MODEL];
 const MIN_BRIEF_DURATION = 30000;
 let selectedMission = 'mission01';
 let selectedDifficulty = 'pilot';
@@ -45,6 +47,13 @@ const MISSION_BRIEFS = {
     copy:
       "Les restes du vaisseau-mere dérivent vers la géante rouge. Aquila doit traverser le champ d'astéroïdes et neutraliser la base camouflée de l'Hégémonie.",
     objective: 'Eviter les astéroïdes, détruire les tourelles rouges, faire exploser la base-astéroïde.',
+  },
+  mission03: {
+    kicker: 'BRIEFING DE MISSION // DEFENSE DU VEHEMENCE',
+    title: 'TENIR LA LIGNE',
+    copy:
+      "L'Hégémonie a localisé le Vehemence. Aquila redécolle au coeur de la bataille pour briser les vagues d'assaut avant qu'elles ne percent son bouclier.",
+    objective: 'Défendre le Vehemence, intercepter les chasseurs, neutraliser artillerie et destroyers ennemis.',
   },
 };
 
@@ -76,8 +85,10 @@ function setMission(missionId) {
   selectedMission = missionId;
   mission01.classList.toggle('active', missionId === 'mission01');
   mission02.classList.toggle('active', missionId === 'mission02');
+  mission03.classList.toggle('active', missionId === 'mission03');
   mission01.setAttribute('aria-pressed', missionId === 'mission01' ? 'true' : 'false');
   mission02.setAttribute('aria-pressed', missionId === 'mission02' ? 'true' : 'false');
+  mission03.setAttribute('aria-pressed', missionId === 'mission03' ? 'true' : 'false');
 }
 
 async function startGame(difficulty = selectedDifficulty, options = {}) {
@@ -142,6 +153,7 @@ async function playIntro() {
 introPlay.addEventListener('click', playIntro);
 mission01.addEventListener('click', () => setMission('mission01'));
 mission02.addEventListener('click', () => setMission('mission02'));
+mission03.addEventListener('click', () => setMission('mission03'));
 difficultyPilot.addEventListener('click', () => setDifficulty('pilot'));
 difficultyCadet.addEventListener('click', () => setDifficulty('cadet'));
 introStart.addEventListener('click', () => startGame());
@@ -149,7 +161,9 @@ introSkip.addEventListener('click', () => startGame());
 introVideo.addEventListener('ended', () => startGame());
 introVideo.addEventListener('error', () => startGame());
 
-if (requestedMission === 'mission01' || requestedMission === 'mission02') setMission(requestedMission);
+if (requestedMission === 'mission01' || requestedMission === 'mission02' || requestedMission === 'mission03') {
+  setMission(requestedMission);
+}
 if (requestedDifficulty === 'pilot' || requestedDifficulty === 'cadet') setDifficulty(requestedDifficulty);
 if (shouldAutostart) {
   setTimeout(() => startGame(selectedDifficulty, { skipBrief: shouldSkipBrief, initialScore: requestedScore }), 0);

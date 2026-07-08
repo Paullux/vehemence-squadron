@@ -315,8 +315,9 @@ export class AsteroidField {
     }
   }
 
-  update(dt, ship, pools, canFire, sound = null, targets = null) {
+  update(dt, ship, pools, canFire, sound = null, targets = null, { enemyAggressionMultiplier = 1 } = {}) {
     if (!this.active || this.complete) return 0;
+    const aggression = Math.max(0.25, enemyAggressionMultiplier);
     this.time += dt;
     const shipPos = ship.group.position;
     let score = 0;
@@ -338,10 +339,10 @@ export class AsteroidField {
       }
     }
 
-    score += this.updateTurrets(dt, ship, pools, canFire, sound);
+    score += this.updateTurrets(dt, ship, pools, canFire, sound, aggression);
 
     if (!this.finalStarted && this.time > FINAL_BASE_START_TIME) this.startFinalBase(shipPos.z);
-    if (this.finalStarted) score += this.updateFinalBase(dt, ship, pools, canFire, sound, targets);
+    if (this.finalStarted) score += this.updateFinalBase(dt, ship, pools, canFire, sound, targets, aggression);
 
     if (this.defeated) {
       this.escapeTimer += dt;
@@ -370,7 +371,7 @@ export class AsteroidField {
     positions.needsUpdate = true;
   }
 
-  updateTurrets(dt, ship, pools, canFire, sound) {
+  updateTurrets(dt, ship, pools, canFire, sound, aggression = 1) {
     let score = 0;
     const shipPos = ship.group.position;
     for (const turret of this.turrets) {
@@ -381,7 +382,7 @@ export class AsteroidField {
       if (_world.z > shipPos.z + 45) continue;
       if (shipPos.z - _world.z > 620) continue;
       turret.lookAt(shipPos);
-      u.cooldown -= dt;
+      u.cooldown -= dt * aggression;
       if (canFire && u.cooldown <= 0) {
         _dir.subVectors(shipPos, _world);
         _origin.copy(_world).addScaledVector(_dir.clone().normalize(), 4.5);
@@ -400,7 +401,7 @@ export class AsteroidField {
     this.launchCooldown = 2.5;
   }
 
-  updateFinalBase(dt, ship, pools, canFire, sound, targets) {
+  updateFinalBase(dt, ship, pools, canFire, sound, targets, aggression = 1) {
     if (!this.boss.visible) return 0;
     this.boss.position.z += (ship.group.position.z - 360 - this.boss.position.z) * (1 - Math.exp(-0.7 * dt));
     this.boss.rotation.x = Math.sin(this.time * GIANT_ASTEROID_ROTATION.x) * Math.PI;
@@ -418,7 +419,7 @@ export class AsteroidField {
       wp.scale.setScalar(1 + 0.12 * Math.sin(this.time * 8 + wp.position.x));
     }
 
-    this.launchCooldown -= dt;
+    this.launchCooldown -= dt * aggression;
     if (targets && canFire && !this.defeated && this.launchCooldown <= 0) {
       const launches = Math.random() > 0.52 ? 2 : 1;
       for (let i = 0; i < launches; i++) {
@@ -431,7 +432,7 @@ export class AsteroidField {
       this.launchCooldown = rand(3.2, 4.8);
     }
 
-    if (canFire && !this.defeated && Math.random() < dt * 0.75) {
+    if (canFire && !this.defeated && Math.random() < dt * 0.75 * aggression) {
       const live = this.weakPoints.filter((wp) => wp.userData.alive && wp.visible);
       const wp = live[Math.floor(Math.random() * live.length)];
       if (wp) {

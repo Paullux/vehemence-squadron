@@ -55,6 +55,17 @@ export const SYSTEMS = {
       { id: 'ocean_planete', position: [920, -430, -3000] },
     ],
   },
+  ocean_front: {
+    stars: [
+      { id: 'sun_star', position: [620, 360, -1650], main: true, lightIntensity: 3.1 },
+      { id: 'big_red_star', position: [-1450, 520, -3300], lightIntensity: 0.08, coronaOpacity: 0.08 },
+    ],
+    planets: [
+      { id: 'ocean_planete', position: [-620, -90, -1550] },
+      { id: 'cratere_moon', position: [-620, -90, -1550], orbit: { around: 0, radius: 390, speed: 0.025, tilt: 0.18 } },
+      { id: 'desert_planete', position: [1250, -520, -3200] },
+    ],
+  },
 };
 
 export const PLANETS = {

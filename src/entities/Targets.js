@@ -172,8 +172,9 @@ export class Targets {
   // `wingmen` : ailiers vivants ou non — sert à répartir les cibles des
   // ennemis sur tout l'escadron (joueur + ailiers), pas seulement le joueur.
   // `pools` = { light, heavy } : LaserPools ennemis selon le calibre.
-  update(dt, ship, wingmen, pools, canFire, sound = null, { respawn = true, rings = true } = {}) {
+  update(dt, ship, wingmen, pools, canFire, sound = null, { respawn = true, rings = true, enemyAggressionMultiplier = 1 } = {}) {
     const shipPos = ship.group.position;
+    const aggression = Math.max(0.25, enemyAggressionMultiplier);
     let ringScore = 0;
 
     for (const e of this.enemies) {
@@ -199,7 +200,7 @@ export class Targets {
       const targetPos = u.target.group.position;
 
       if (u.hasModel) {
-        const speedMultiplier = u.launchedByBoss ? 2.35 : 1;
+        const speedMultiplier = u.launchedByBoss ? 1 + 1.35 * aggression : 0.75 + 0.25 * aggression;
         e.position.z += def.approachSpeed * speedMultiplier * dt;
         if (u.launchedByBoss) {
           _attackTarget.set(
@@ -225,7 +226,7 @@ export class Targets {
       // Tir : visée anticipée sur la trajectoire de la cible (joueur ou
       // ailier) + dispersion. La progression en Z reste calée sur le
       // joueur (rythme du rail), seul le point visé change.
-      u.fireCooldown -= dt;
+      u.fireCooldown -= dt * aggression;
       if (canFire && u.alive && u.hasModel && u.fireCooldown <= 0) {
         const ahead = shipPos.z - e.position.z; // > 0 si l'ennemi est devant
         if (ahead > 80 && ahead < 600) {

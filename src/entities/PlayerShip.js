@@ -36,7 +36,7 @@ export function createAquilaLampRig({ scale = 1, headlightIntensity = 72, marker
   const cockpitGlow = new THREE.PointLight(0x86ecff, markerIntensity * 1.2, 22 * scale, 1.7);
   cockpitGlow.position.set(0, 0.9 * scale, -0.5 * scale);
 
-  const portLamp = new THREE.PointLight(0xff4455, markerIntensity, 18 * scale, 1.8);
+  const portLamp = new THREE.PointLight(0xcc2630, markerIntensity * 0.35, 11 * scale, 2.1);
   portLamp.position.set(-3.7 * scale, -0.2 * scale, -1.1 * scale);
 
   const starboardLamp = new THREE.PointLight(0x55ff99, markerIntensity, 18 * scale, 1.8);

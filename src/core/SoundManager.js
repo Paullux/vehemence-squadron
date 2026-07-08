@@ -51,6 +51,7 @@ const VOICE = {
   lowEnergyCobra: `${VOICE_PATH}low_energy_cobra.wav`,
   lowEnergyCorbeau: `${VOICE_PATH}low_energy_corbeau.wav`,
   fightBossMothership: `${VOICE_PATH}fight_boss_mothership.wav`,
+  mission03Launch: `${VOICE_PATH}cest_a_notre_tout.wav`,
   mission02CommanderDebrief: '/cinematics/second_mission_end/discours_debrief.wav',
 };
 
@@ -433,6 +434,10 @@ export class SoundManager {
 
   bossMothershipIncoming() {
     this.playVoiceLine('fightBossMothership', { volume: 2.1, rate: 0.98, priority: true, duckMusic: true });
+  }
+
+  mission03Launch() {
+    this.playVoiceLine('mission03Launch', { volume: 2.1, rate: 1, priority: true, duckMusic: true });
   }
 
   mission02CommanderDebrief() {

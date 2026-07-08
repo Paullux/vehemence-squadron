@@ -12,6 +12,7 @@ export const DIFFICULTIES = {
     receivedDamageMultiplier: 1,
     fireCooldownMultiplier: 1,
     regenRateMultiplier: 1,
+    enemyAggressionMultiplier: 1,
   },
   cadet: {
     id: 'cadet',
@@ -20,6 +21,7 @@ export const DIFFICULTIES = {
     receivedDamageMultiplier: 0.5,
     fireCooldownMultiplier: 0.5,
     regenRateMultiplier: 2,
+    enemyAggressionMultiplier: 0.65,
   },
 };
 

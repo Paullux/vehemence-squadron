@@ -1,15 +1,17 @@
 import * as THREE from 'three';
 import { Input } from './Input.js';
-import { PlayerShip } from '../entities/PlayerShip.js';
+import { HERO_MODEL, PlayerShip } from '../entities/PlayerShip.js';
 import { Wingman } from '../entities/Wingman.js';
 import { LaserPool } from '../entities/LaserPool.js';
 import { Targets } from '../entities/Targets.js';
 import { MothershipBoss } from '../entities/MothershipBoss.js';
 import { AsteroidField } from '../entities/AsteroidField.js';
+import { VehemenceDefense } from '../entities/VehemenceDefense.js';
 import { ExplosionPool } from '../entities/Explosions.js';
 import { Starfield } from '../world/Starfield.js';
 import { Environment } from '../world/Environment.js';
 import { SoundManager } from './SoundManager.js';
+import { loadShipModel } from './ShipModel.js';
 import { MAX_HP, REGEN_DELAY, REGEN_RATE, getDifficulty } from './combat.js';
 import { assetUrl } from './assetUrl.js';
 
@@ -17,6 +19,7 @@ const BASE_FOV = 70;
 const FORWARD = new THREE.Vector3(0, 0, -1);
 const BOSS_SPAWN_TIME = 10;
 const LAUNCH_DURATION = 3.6;
+const MISSION03_LAUNCH_DURATION = 6.0;
 const LAUNCH_HANGAR_DISTANCE = 360;
 const LAUNCH_HANGAR_ASPECT = 1672 / 941;
 const AIM_DEPTH = 78;
@@ -37,6 +40,7 @@ const DEFAULT_AUDIO_SETTINGS = {
 const DEBRIEF_VIDEO_BY_MISSION = {
   mission01: '/cinematics/first_mission_end/debrief_end_first_mission.mp4',
   mission02: '/cinematics/second_mission_end/red_corona_escape_seedance.mp4',
+  mission03: '/cinematics/third_mission_end/end_mission_3_debrief.mp4',
 };
 const MISSION02_COMMANDER_BRIEF =
   "Pilotes de l'escadron Aquila.\n\n" +
@@ -52,6 +56,11 @@ const clamp01 = (v) => Math.max(0, Math.min(1, v));
 const smoothstep = (v) => {
   const t = clamp01(v);
   return t * t * (3 - 2 * t);
+};
+const getMissionSystemId = (missionId) => {
+  if (missionId === 'mission02') return 'kharos_red_corona';
+  if (missionId === 'mission03') return 'ocean_front';
+  return 'kharos_binary';
 };
 
 export class Game {
@@ -89,14 +98,16 @@ export class Game {
     this.lasers = new LaserPool(this.scene);
     this.enemyLasers = new LaserPool(this.scene, { size: 32, color: 0xff3344, radius: 0.14 });
     this.enemyHeavyLasers = new LaserPool(this.scene, { size: 16, color: 0xff7733, radius: 0.28, length: 6.5 });
+    this.alliedLasers = new LaserPool(this.scene, { size: 72, color: 0x55ddff, radius: 0.06, length: 7 });
     this.targets = new Targets(this.scene);
     this.boss = new MothershipBoss(this.scene);
     this.asteroidField = new AsteroidField(this.scene);
+    this.vehemenceDefense = new VehemenceDefense(this.scene);
     this.explosions = new ExplosionPool(this.scene);
     this.starfield = new Starfield(this.scene);
     // Système stellaire de la mission — voir SYSTEMS dans celestial-catalog.js
     this.environment = new Environment(this.scene, this.camera, {
-      systemId: this.missionId === 'mission02' ? 'kharos_red_corona' : 'kharos_binary',
+      systemId: getMissionSystemId(this.missionId),
     });
     this.buildMissionLighting();
 
@@ -124,6 +135,8 @@ export class Game {
     this.hudHpBar = document.getElementById('hpbar');
     this.hudFlash = document.getElementById('damage-flash');
     this.hudGameOver = document.getElementById('gameover');
+    this.hudGameOverTitle = document.getElementById('gameover-title');
+    this.hudGameOverSubtitle = document.getElementById('gameover-subtitle');
     this.hudBoss = document.getElementById('boss-hud');
     this.hudBossLabel = document.getElementById('boss-label');
     this.hudBossBar = document.getElementById('boss-bar');
@@ -165,6 +178,7 @@ export class Game {
     this.launchProgress = document.getElementById('launch-progress');
     this.launching = true;
     this.launchTime = 0;
+    this.launchVoicePlayed = false;
     this.hudRoot.classList.add('launching');
     this.launchOverlay.classList.remove('hidden');
     this.setCombatVisible(false);
@@ -212,6 +226,16 @@ export class Game {
   }
 
   buildMissionLighting() {
+    if (this.missionId === 'mission03') {
+      const battleFill = new THREE.HemisphereLight(0xbfd9ff, 0x101827, 0.82);
+      this.scene.add(battleFill);
+
+      const carrierKey = new THREE.DirectionalLight(0xffefd0, 1.35);
+      carrierKey.position.set(0.45, 0.5, 0.7).normalize();
+      this.scene.add(carrierKey);
+
+      return;
+    }
     if (this.missionId !== 'mission02') return;
 
     const coronaFill = new THREE.HemisphereLight(0xff8a55, 0x251018, 0.72);
@@ -227,6 +251,7 @@ export class Game {
   }
 
   buildLaunchSequence() {
+    this.launchDuration = this.missionId === 'mission03' ? MISSION03_LAUNCH_DURATION : LAUNCH_DURATION;
     this.starfield.points.renderOrder = -30;
     const hangarTexture = new THREE.TextureLoader().load(assetUrl('/images/interieur_vehemence.png'));
     hangarTexture.colorSpace = THREE.SRGBColorSpace;
@@ -287,10 +312,25 @@ export class Game {
         scale: 0.52,
       },
     ];
+    if (this.missionId === 'mission03') {
+      const mission03Delays = [3.05, 3.35, 3.68, 4.0];
+      const mission03Ends = [
+        [-3.8, 6.4, -150],
+        [8.8, 7.4, -188],
+        [14.5, 8.8, -230],
+        [4.8, 9.4, -270],
+      ];
+      for (let i = 0; i < this.launchActors.length; i++) {
+        this.launchActors[i].delay = mission03Delays[i];
+        this.launchActors[i].duration = 2.35;
+        this.launchActors[i].end.set(...mission03Ends[i]);
+      }
+    }
+    this.launchExtras = this.missionId === 'mission03' ? this.buildLaunchExtras() : [];
 
     const trailGeo = new THREE.CylinderGeometry(0.08, 0.42, 38, 18, 1, true);
     trailGeo.rotateX(Math.PI / 2);
-    for (const actor of this.launchActors) {
+    for (const actor of [...this.launchActors, ...this.launchExtras]) {
       actor.originalScale = actor.group.scale.clone();
       const trail = new THREE.Mesh(
         trailGeo,
@@ -307,6 +347,67 @@ export class Game {
       actor.trail = trail;
       actor.group.add(trail);
     }
+  }
+
+  buildLaunchExtras() {
+    const extras = [];
+    const extraGeo = new THREE.ConeGeometry(1, 5.5, 8);
+    extraGeo.rotateX(-Math.PI / 2);
+    const extraMat = new THREE.MeshStandardMaterial({
+      color: 0xaebfd4,
+      metalness: 0.42,
+      roughness: 0.38,
+      flatShading: true,
+    });
+    const paths = [
+      [-18, -2.0, -30, -34, 6.0, -210, 0.15],
+      [-6, -1.0, -38, -12, 8.5, -245, 0.25],
+      [7, -1.4, -34, 14, 8.0, -235, 0.35],
+      [18, -2.1, -42, 36, 6.8, -220, 0.45],
+      [-20, 1.8, -52, -38, 10.5, -285, 1.05],
+      [-7, 2.8, -60, -16, 12.2, -315, 1.15],
+      [7, 2.5, -58, 16, 11.6, -305, 1.25],
+      [20, 1.5, -66, 40, 9.7, -292, 1.35],
+      [-15, -3.2, -76, -30, 4.8, -350, 1.95],
+      [-4, -2.7, -84, -10, 6.4, -380, 2.05],
+      [5, -2.9, -82, 12, 6.1, -370, 2.15],
+      [16, -3.4, -90, 32, 5.0, -360, 2.25],
+    ];
+
+    for (const [sx, sy, sz, ex, ey, ez, delay] of paths) {
+      const group = new THREE.Group();
+      const mesh = new THREE.Group();
+      const placeholder = new THREE.Mesh(extraGeo, extraMat);
+      mesh.add(placeholder);
+      group.add(mesh);
+      group.visible = false;
+      group.scale.setScalar(0.62);
+      this.scene.add(group);
+      extras.push({
+        group,
+        mesh,
+        start: new THREE.Vector3(sx, sy, sz),
+        end: new THREE.Vector3(ex, ey, ez),
+        roll: sx < 0 ? -0.22 : 0.22,
+        pitch: 0.08,
+        yaw: sx < 0 ? -0.1 : 0.1,
+        delay,
+        scale: 0.58,
+        duration: 1.65,
+        disposable: true,
+      });
+    }
+
+    loadShipModel(HERO_MODEL)
+      .then((model) => {
+        for (const actor of extras) {
+          actor.mesh.clear();
+          actor.mesh.add(model.clone(true));
+        }
+      })
+      .catch((err) => console.error('Figurants Aquila indisponibles - placeholders conserves', err));
+
+    return extras;
   }
 
   start() {
@@ -337,6 +438,7 @@ export class Game {
       this.missionTime += dt;
       if (this.missionId === 'mission01' && !this.bossStarted && this.missionTime >= BOSS_SPAWN_TIME) this.spawnMothership();
       if (this.missionId === 'mission02' && !this.asteroidField.active) this.startAsteroidMission();
+      if (this.missionId === 'mission03' && !this.vehemenceDefense.active) this.startVehemenceDefense();
 
       this.fireCooldown -= dt;
       if (this.input.fire && this.fireCooldown <= 0) {
@@ -364,6 +466,7 @@ export class Game {
     this.lasers.update(dt);
     this.enemyLasers.update(dt);
     this.enemyHeavyLasers.update(dt);
+    this.alliedLasers.update(dt);
     if (this.missionId === 'mission01' && !this.bossStarted && !this.missionComplete) {
       this.score += this.targets.update(
         dt,
@@ -371,7 +474,8 @@ export class Game {
         this.wingmen,
         { light: this.enemyLasers, heavy: this.enemyHeavyLasers },
         !this.gameOver,
-        this.sound
+        this.sound,
+        { enemyAggressionMultiplier: this.difficulty.enemyAggressionMultiplier }
       );
     }
     if (this.missionId === 'mission01') {
@@ -380,7 +484,8 @@ export class Game {
         this.ship,
         { light: this.enemyLasers, heavy: this.enemyHeavyLasers },
         !this.gameOver && !this.missionComplete,
-        this.sound
+        this.sound,
+        { enemyAggressionMultiplier: this.difficulty.enemyAggressionMultiplier }
       );
     }
     if (this.missionId === 'mission02' && !this.missionComplete) {
@@ -390,7 +495,8 @@ export class Game {
         { light: this.enemyLasers, heavy: this.enemyHeavyLasers },
         !this.gameOver,
         this.sound,
-        this.targets
+        this.targets,
+        { enemyAggressionMultiplier: this.difficulty.enemyAggressionMultiplier }
       );
       this.targets.update(
         dt,
@@ -399,9 +505,31 @@ export class Game {
         { light: this.enemyLasers, heavy: this.enemyHeavyLasers },
         !this.gameOver,
         this.sound,
-        { respawn: false, rings: false }
+        { respawn: false, rings: false, enemyAggressionMultiplier: this.difficulty.enemyAggressionMultiplier }
       );
       if (this.asteroidField.complete) this.completeMission();
+    }
+    if (this.missionId === 'mission03' && !this.missionComplete) {
+      this.score += this.targets.update(
+        dt,
+        this.ship,
+        [...this.wingmen, this.vehemenceDefense.targetProxy],
+        { light: this.enemyLasers, heavy: this.enemyHeavyLasers },
+        !this.gameOver,
+        this.sound,
+        { respawn: false, rings: false, enemyAggressionMultiplier: this.difficulty.enemyAggressionMultiplier }
+      );
+      this.score += this.vehemenceDefense.update(
+        dt,
+        this.ship,
+        this.targets,
+        { allied: this.alliedLasers, enemyLight: this.enemyLasers, enemyHeavy: this.enemyHeavyLasers },
+        this.sound,
+        this.explosions,
+        { enemyAggressionMultiplier: this.difficulty.enemyAggressionMultiplier }
+      );
+      if (this.vehemenceDefense.complete) this.completeMission();
+      if (this.vehemenceDefense.defeated && !this.gameOver) this.die();
     }
     if (this.missionId === 'mission01' && this.bossStarted && !this.missionComplete) {
       const launchOrigin = this.boss.consumeFighterLaunch();
@@ -420,7 +548,7 @@ export class Game {
         { light: this.enemyLasers, heavy: this.enemyHeavyLasers },
         !this.gameOver,
         this.sound,
-        { respawn: false, rings: false }
+        { respawn: false, rings: false, enemyAggressionMultiplier: this.difficulty.enemyAggressionMultiplier }
       );
     }
     this.explosions.update(dt);
@@ -571,10 +699,18 @@ export class Game {
     this.sound.playMusic('mission01', { volume: 0.52, fade: 1.2 });
   }
 
+  startVehemenceDefense() {
+    this.bossStarted = true;
+    this.setCombatVisible(false);
+    this.hudBoss.classList.remove('hidden');
+    this.vehemenceDefense.start(this.ship.group.position.z);
+    this.sound.playMusic('generalBoss', { volume: 0.5, fade: 1.2 });
+  }
+
   updateLaunch(dt) {
     this.launchTime += dt;
     const t = this.launchTime;
-    const global = smoothstep(t / LAUNCH_DURATION);
+    const global = smoothstep(t / this.launchDuration);
 
     this.camera.position.set(0, 1.15 - global * 0.2, -4 + global * 1.5);
     this.camera.lookAt(0, 3.55 + global * 2.2, -94 - global * 58);
@@ -586,30 +722,48 @@ export class Game {
     this.ship.boostAmount = 0.65 + global * 0.35;
 
     for (const actor of this.launchActors) {
-      const local = smoothstep((t - actor.delay) / (LAUNCH_DURATION - 1.05));
-      actor.group.visible = t >= actor.delay - 0.1;
-      actor.group.position.lerpVectors(actor.start, actor.end, local);
-      actor.group.scale.setScalar(actor.scale * (1 - local * 0.4));
-      actor.mesh.rotation.set(
-        actor.pitch + Math.sin(t * 2 + actor.delay) * 0.035,
-        actor.yaw,
-        actor.roll + Math.sin(t * 3 + actor.delay) * 0.04
-      );
-      actor.trail.visible = local < 0.97;
-      actor.trail.material.opacity = (1 - local) * (0.28 + Math.sin(t * 24) * 0.04);
-      actor.trail.scale.set(0.72 + local * 0.18, 0.72 + local * 0.18, 1 + local * 1.3);
+      this.updateLaunchActor(actor, t);
+    }
+    for (const actor of this.launchExtras) {
+      this.updateLaunchActor(actor, t);
+    }
+
+    if (this.missionId === 'mission03' && !this.launchVoicePlayed && t > this.launchActors[0].delay + 0.1) {
+      this.launchVoicePlayed = true;
+      this.sound.mission03Launch();
     }
 
     if (this.launchStatus) {
-      if (t < 1.5) this.launchStatus.textContent = 'CATAPULTES SYNCHRONISEES';
+      if (this.missionId === 'mission03') {
+        if (t < 1.0) this.launchStatus.textContent = 'PREMIERE SALVE AQUILA';
+        else if (t < 1.9) this.launchStatus.textContent = 'DEUXIEME SALVE EN SORTIE';
+        else if (t < 3.05) this.launchStatus.textContent = 'TROISIEME SALVE EN SORTIE';
+        else if (t < 4.8) this.launchStatus.textContent = 'ESCADRON AQUILA AU DECOLLAGE';
+        else this.launchStatus.textContent = 'TOUS LES ESCADRONS ENGAGES';
+      } else if (t < 1.5) this.launchStatus.textContent = 'CATAPULTES SYNCHRONISEES';
       else if (t < 3.4) this.launchStatus.textContent = 'ESCADRON AQUILA EN SORTIE';
       else this.launchStatus.textContent = 'LE VEHEMENCE VOUS OUVRE LA VOIE';
     }
     if (this.launchProgress) {
-      this.launchProgress.style.transform = `scaleX(${clamp01(t / LAUNCH_DURATION)})`;
+      this.launchProgress.style.transform = `scaleX(${clamp01(t / this.launchDuration)})`;
     }
 
-    if (t >= LAUNCH_DURATION) this.finishLaunch();
+    if (t >= this.launchDuration) this.finishLaunch();
+  }
+
+  updateLaunchActor(actor, t) {
+    const local = smoothstep((t - actor.delay) / (actor.duration ?? LAUNCH_DURATION - 1.05));
+    actor.group.visible = t >= actor.delay - 0.1;
+    actor.group.position.lerpVectors(actor.start, actor.end, local);
+    actor.group.scale.setScalar(actor.scale * (1 - local * 0.4));
+    actor.mesh.rotation.set(
+      actor.pitch + Math.sin(t * 2 + actor.delay) * 0.035,
+      actor.yaw,
+      actor.roll + Math.sin(t * 3 + actor.delay) * 0.04
+    );
+    actor.trail.visible = local < 0.97;
+    actor.trail.material.opacity = (1 - local) * (0.28 + Math.sin(t * 24) * 0.04);
+    actor.trail.scale.set(0.72 + local * 0.18, 0.72 + local * 0.18, 1 + local * 1.3);
   }
 
   finishLaunch() {
@@ -637,6 +791,10 @@ export class Game {
       actor.trail.visible = false;
     }
     this.launchActors[0].trail.visible = false;
+    for (const actor of this.launchExtras) {
+      actor.trail.visible = false;
+      actor.group.visible = false;
+    }
 
     this.camera.position.set(0, 3.5, 15);
     this.camera.fov = BASE_FOV;
@@ -776,6 +934,9 @@ export class Game {
     if (this.missionId === 'mission02') {
       this.hudMissionCompleteTitle.textContent = 'COURONNE SECURISEE';
       this.hudMissionCompleteSubtitle.textContent = 'BASE-ASTEROIDE DETRUITE';
+    } else if (this.missionId === 'mission03') {
+      this.hudMissionCompleteTitle.textContent = 'VEHEMENCE PROTEGE';
+      this.hudMissionCompleteSubtitle.textContent = 'ASSAUT REPOUSSE';
     } else {
       this.hudMissionCompleteTitle.textContent = 'ROUTE LIBEREE';
       this.hudMissionCompleteSubtitle.textContent = 'VAISSEAU-MERE DETRUIT';
@@ -805,6 +966,10 @@ export class Game {
       this.endDebrief();
       return;
     }
+    if (!DEBRIEF_VIDEO_BY_MISSION[this.missionId]) {
+      this.endDebrief();
+      return;
+    }
     this.debriefAi?.classList.add('hidden');
     this.debriefCommander?.classList.add('hidden');
     this.debriefVideo.classList.remove('hidden');
@@ -820,6 +985,8 @@ export class Game {
     );
     if (this.missionId === 'mission02') {
       this.debriefVideo.addEventListener('error', () => this.startAiDebrief(), { once: true });
+    } else {
+      this.debriefVideo.addEventListener('error', () => this.endDebrief(), { once: true });
     }
   }
 
@@ -886,6 +1053,16 @@ export class Game {
       return;
     }
     if (this.missionId === 'mission02') {
+      const next = new URL(location.href);
+      next.searchParams.set('mission', 'mission03');
+      next.searchParams.set('difficulty', this.difficultyId);
+      next.searchParams.set('score', String(this.score));
+      next.searchParams.set('autostart', '1');
+      next.searchParams.delete('skipBrief');
+      location.href = next.toString();
+      return;
+    }
+    if (this.missionId === 'mission03') {
       location.href = `${location.origin}${location.pathname}`;
       return;
     }
@@ -940,11 +1117,19 @@ export class Game {
   die() {
     this.gameOver = true;
     this.setPaused(false);
-    this.sound.explosion('medium', this.ship.group.position);
-    this.explosions.spawn(this.ship.group.position);
+    const vehemenceLost = this.missionId === 'mission03' && this.vehemenceDefense.defeated;
+    if (this.hudGameOverTitle) this.hudGameOverTitle.textContent = vehemenceLost ? 'VEHEMENCE DETRUIT' : 'GAME OVER';
+    if (this.hudGameOverSubtitle) {
+      this.hudGameOverSubtitle.innerHTML = vehemenceLost
+        ? `ECHEC DE LA MISSION<br>SCORE FINAL : <span id="final-score">${this.score}</span>`
+        : `SCORE FINAL : <span id="final-score">${this.score}</span>`;
+    }
+    if (!vehemenceLost) {
+      this.sound.explosion('medium', this.ship.group.position);
+      this.explosions.spawn(this.ship.group.position);
+    }
     this.ship.group.visible = false;
     this.aimGroup.visible = false;
-    document.getElementById('final-score').textContent = this.score;
     this.hudGameOver.classList.remove('hidden');
     document.body.classList.remove('cursor-hidden');
   }
@@ -1014,7 +1199,10 @@ export class Game {
     this.hudFlash.style.opacity = this.flashTimer > 0 ? (this.flashTimer / 0.35) * 0.8 : 0;
 
     if (this.bossStarted && !this.boss.defeated) {
-      const bossHud = this.missionId === 'mission02' ? this.asteroidField : this.boss;
+      const bossHud =
+        this.missionId === 'mission03' ? this.vehemenceDefense :
+        this.missionId === 'mission02' ? this.asteroidField :
+        this.boss;
       this.hudBossLabel.textContent = bossHud.getStatusLabel();
       this.hudBossBar.style.width = `${(1 - bossHud.getProgress()) * 100}%`;
     }
