@@ -252,7 +252,9 @@ checkpoint informatif ; la reprise exacte d'un état 3D viendra avec la machine
   satellites-boucliers répartis autour d'elle, au lieu de rester dans un couloir
   frontal. Objectif pressenti : combattre la flotte ennemie et détruire les
   satellites qui génèrent le champ de force/bouclier planétaire de l'Hégémonie.
-  Références de génération Rodin pour ces satellites :
+  Modèle runtime des satellites :
+  `public/space_ships/ennemies/shield_satellites/base_basic_pbr.glb` avec
+  `texture_emissive.png`. Références de génération Rodin conservées côté source :
   `I:\jeu Space Opera Threejs - Source\pipeline-assets\space_ships\ennemies\hegemony_shield_satellite\references\`.
 - **Bouclier du héros : 100 PV** (laser ennemi -12, collision -25), régénération
   +4 PV/s après 5 s sans dégât. HUD : barre de bouclier (vert/orange/rouge), vignette
