@@ -144,11 +144,12 @@ export class Targets {
     enemy.userData.alive = true;
     enemy.userData.hp = def.hp;
     enemy.userData.launchedByBoss = false;
+    enemy.userData.freeChase = false;
     enemy.userData.retargetCooldown = 0; // force un nouveau choix de cible
     enemy.visible = true;
   }
 
-  launchFromMothership(typeId, origin, shipZ) {
+  launchFromMothership(typeId, origin, shipZ, { clampAhead = true, freeChase = false } = {}) {
     const enemy =
       this.enemies.find((e) => e.userData.typeId === typeId && (!e.visible || !e.userData.alive)) ||
       this.enemies.find((e) => e.userData.typeId === typeId);
@@ -157,11 +158,12 @@ export class Targets {
     const u = enemy.userData;
     const def = u.def;
     enemy.position.copy(origin);
-    enemy.position.z = Math.min(enemy.position.z, shipZ - 140);
+    if (clampAhead) enemy.position.z = Math.min(enemy.position.z, shipZ - 140);
     enemy.visible = true;
     u.alive = true;
     u.hp = def.hp;
     u.launchedByBoss = true;
+    u.freeChase = freeChase;
     u.fireCooldown = rand(0.45, 1.1);
     u.retargetCooldown = 0; // force un nouveau choix de cible
     u.attackOffset.set(rand(-7, 7), rand(-4, 4));
@@ -201,8 +203,21 @@ export class Targets {
 
       if (u.hasModel) {
         const speedMultiplier = u.launchedByBoss ? 1 + 1.35 * aggression : 0.75 + 0.25 * aggression;
-        e.position.z += def.approachSpeed * speedMultiplier * dt;
-        if (u.launchedByBoss) {
+        if (u.freeChase) {
+          _attackTarget.set(
+            targetPos.x + u.attackOffset.x + Math.sin(u.time * 1.7) * 5.0,
+            targetPos.y + u.attackOffset.y + Math.cos(u.time * 1.3) * 3.8,
+            targetPos.z + Math.sin(u.time * 1.1) * 12
+          );
+          _dir.subVectors(_attackTarget, e.position);
+          const distance = Math.max(1, _dir.length());
+          e.position.addScaledVector(_dir.normalize(), Math.min(distance, def.approachSpeed * speedMultiplier * 2.5 * dt));
+          e.rotation.z = THREE.MathUtils.clamp((targetPos.x - e.position.x) * -0.018, -0.65, 0.65);
+          e.rotation.x = THREE.MathUtils.clamp((targetPos.y - e.position.y) * 0.018, -0.35, 0.35);
+        } else {
+          e.position.z += def.approachSpeed * speedMultiplier * dt;
+        }
+        if (u.launchedByBoss && !u.freeChase) {
           _attackTarget.set(
             targetPos.x + u.attackOffset.x + Math.sin(u.time * 1.7) * 2.5,
             targetPos.y + u.attackOffset.y + Math.cos(u.time * 1.3) * 1.6,
@@ -229,7 +244,7 @@ export class Targets {
       u.fireCooldown -= dt * aggression;
       if (canFire && u.alive && u.hasModel && u.fireCooldown <= 0) {
         const ahead = shipPos.z - e.position.z; // > 0 si l'ennemi est devant
-        if (ahead > 80 && ahead < 600) {
+        if (u.freeChase || (ahead > 80 && ahead < 600)) {
           const bolt = def.bolt;
           const targetVelocity = u.target.velocity || _zeroVelocity;
           const t = e.position.distanceTo(targetPos) / bolt.speed;
@@ -246,7 +261,7 @@ export class Targets {
         }
       }
 
-      if (!u.alive || e.position.z > shipPos.z + 30) {
+      if (!u.alive || (!u.freeChase && e.position.z > shipPos.z + 30) || (u.freeChase && e.position.distanceToSquared(shipPos) > 950 * 950)) {
         if (!respawn) {
           e.visible = false;
           u.alive = false;

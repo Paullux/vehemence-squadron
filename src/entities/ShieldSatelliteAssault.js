@@ -14,6 +14,7 @@ const SATELLITE_COUNT = 6;
 const SHIELD_RADIUS = 270;
 const PLANET_RADIUS = 190;
 const SATELLITE_HP = 6;
+const SATELLITE_HIT_RADIUS = 34;
 const FIGHTER_WAVE_INTERVAL = 5.2;
 const PLANET_TEXTURES = {
   albedo: '/textures/planets/red_planete/planet_albedo.png',
@@ -25,6 +26,8 @@ const textureLoader = new THREE.TextureLoader();
 const _origin = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _impactDir = new THREE.Vector3();
+const _side = new THREE.Vector3();
+const _up = new THREE.Vector3();
 
 const rand = (a, b) => a + Math.random() * (b - a);
 
@@ -262,14 +265,21 @@ export class ShieldSatelliteAssault {
     if (this.fighterCooldown > 0) return;
     this.fighterCooldown = rand(FIGHTER_WAVE_INTERVAL * 0.75, FIGHTER_WAVE_INTERVAL * 1.35);
     const count = Math.random() > 0.45 ? 2 : 1;
+    _dir.subVectors(ship.group.position, this.center).normalize();
+    _side.crossVectors(_dir, new THREE.Vector3(0, 1, 0));
+    if (_side.lengthSq() < 0.01) _side.set(1, 0, 0);
+    _side.normalize();
+    _up.crossVectors(_side, _dir).normalize();
     for (let i = 0; i < count; i++) {
-      const side = Math.random() < 0.5 ? -1 : 1;
-      _origin.set(
-        ship.group.position.x + side * rand(24, 64),
-        ship.group.position.y + rand(-18, 24),
-        ship.group.position.z - rand(240, 420)
-      );
-      targets.launchFromMothership('basic_fighter', _origin, ship.group.position.z);
+      const sideOffset = (i - (count - 1) * 0.5) * rand(28, 44) + rand(-12, 12);
+      _origin.copy(this.center)
+        .addScaledVector(_dir, SHIELD_RADIUS + rand(38, 82))
+        .addScaledVector(_side, sideOffset)
+        .addScaledVector(_up, rand(-30, 30));
+      targets.launchFromMothership('basic_fighter', _origin, ship.group.position.z, {
+        clampAhead: false,
+        freeChase: true,
+      });
     }
   }
 
@@ -278,7 +288,7 @@ export class ShieldSatelliteAssault {
     for (const sat of this.satellites) {
       if (sat.destroyed) continue;
       sat.group.getWorldPosition(_origin);
-      if (laser.position.distanceToSquared(_origin) > 24 * 24) continue;
+      if (laser.position.distanceToSquared(_origin) > SATELLITE_HIT_RADIUS * SATELLITE_HIT_RADIUS) continue;
       sat.hp -= Math.max(1, laser.userData.damage || 1);
       sound?.armorHit(_origin);
       sat.halo.material.opacity = 0.85;

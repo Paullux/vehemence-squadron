@@ -29,9 +29,7 @@ const AIM_NEAR_DEPTH = 35;
 const AIM_RANGE_X = 30;
 const AIM_RANGE_Y = 17;
 const MISSION04_ORBIT_RADIUS = 430;
-const MISSION04_BASE_ANGULAR_SPEED = 0.18;
-const MISSION04_ORBIT_HEIGHT_LIMIT = 150;
-const MISSION04_LANE_LIMIT = 115;
+const MISSION04_ORBIT_PITCH_LIMIT = 1.42;
 const AUDIO_SETTINGS_KEY = 'vehemence.audio';
 const MISSION_SAVE_KEY = 'vehemence.missionSave';
 const DEBRIEF_DELAY = 2500;
@@ -138,9 +136,8 @@ export class Game {
     this.missionComplete = false;
     this.paused = false;
     this.mission04OrbitAngle = -1.45;
-    this.mission04OrbitHeight = 16;
+    this.mission04OrbitPitch = 0.08;
     this.mission04OrbitRadius = MISSION04_ORBIT_RADIUS;
-    this.mission04OrbitLane = 0;
     this.mission04Forward = new THREE.Vector3(0, 0, -1);
     this.mission04Right = new THREE.Vector3(1, 0, 0);
     this.mission04Up = new THREE.Vector3(0, 1, 0);
@@ -824,9 +821,8 @@ export class Game {
     for (const wingman of this.wingmen) wingman.group.visible = false;
     if (this.mission04CameraSquadron) this.mission04CameraSquadron.visible = true;
     this.mission04OrbitAngle = -1.45;
-    this.mission04OrbitHeight = 18;
+    this.mission04OrbitPitch = 0.08;
     this.mission04OrbitRadius = MISSION04_ORBIT_RADIUS;
-    this.mission04OrbitLane = 0;
     this.sound.playMusic('generalBoss', { volume: 0.52, fade: 1.2 });
   }
 
@@ -835,49 +831,41 @@ export class Game {
     this._prevShipPos.copy(this.ship.group.position);
 
     const boost = this.input.boost ? 1 : 0;
-    const angularSpeed =
-      MISSION04_BASE_ANGULAR_SPEED +
-      this.input.moveX * 0.11 +
-      boost * 0.13;
-    this.mission04OrbitAngle += Math.max(0.055, angularSpeed) * dt;
-    this.mission04OrbitHeight = THREE.MathUtils.clamp(
-      this.mission04OrbitHeight + this.input.moveY * 118 * dt,
-      -MISSION04_ORBIT_HEIGHT_LIMIT,
-      MISSION04_ORBIT_HEIGHT_LIMIT
+    const orbitSpeed = (boost ? 1.18 : 0.78);
+    this.mission04OrbitAngle += this.input.moveX * orbitSpeed * dt;
+    this.mission04OrbitPitch = THREE.MathUtils.clamp(
+      this.mission04OrbitPitch + this.input.moveY * orbitSpeed * 0.82 * dt,
+      -MISSION04_ORBIT_PITCH_LIMIT,
+      MISSION04_ORBIT_PITCH_LIMIT
     );
-    this.mission04OrbitRadius = THREE.MathUtils.clamp(
-      this.mission04OrbitRadius + (this.input.boost ? -58 : 24) * dt,
-      320,
-      520
-    );
-    this.mission04OrbitLane = THREE.MathUtils.clamp(
-      this.mission04OrbitLane + this.input.moveX * 92 * dt,
-      -MISSION04_LANE_LIMIT,
-      MISSION04_LANE_LIMIT
-    );
-    this.mission04OrbitLane *= Math.exp(-0.42 * dt);
+    this.mission04OrbitRadius = MISSION04_ORBIT_RADIUS;
 
     const a = this.mission04OrbitAngle;
-    const radial = this._v.set(Math.cos(a), 0, Math.sin(a)).normalize();
-    this.mission04Up.set(0, 1, 0);
-    this.mission04Forward
-      .set(-Math.sin(a), 0, Math.cos(a))
-      .multiplyScalar(0.78)
-      .addScaledVector(radial, -0.42)
-      .normalize();
-    this.mission04Right.crossVectors(this.mission04Forward, this.mission04Up).normalize();
+    const p = this.mission04OrbitPitch;
+    const cosPitch = Math.cos(p);
+    const radial = this._v.set(Math.cos(a) * cosPitch, Math.sin(p), Math.sin(a) * cosPitch).normalize();
+    const tangent = new THREE.Vector3(-Math.sin(a), 0, Math.cos(a)).normalize();
+    const vertical = new THREE.Vector3(
+      -Math.cos(a) * Math.sin(p),
+      Math.cos(p),
+      -Math.sin(a) * Math.sin(p)
+    ).normalize();
 
     this.ship.group.position
       .copy(center)
-      .addScaledVector(radial, this.mission04OrbitRadius)
-      .addScaledVector(this.mission04Up, this.mission04OrbitHeight)
-      .addScaledVector(this.mission04Right, this.mission04OrbitLane);
+      .addScaledVector(radial, this.mission04OrbitRadius);
+    this.mission04Forward.copy(radial).multiplyScalar(-1)
+      .addScaledVector(tangent, this.input.moveX * 0.16)
+      .addScaledVector(vertical, this.input.moveY * 0.12)
+      .normalize();
+    this.mission04Right.copy(tangent);
+    this.mission04Up.crossVectors(this.mission04Right, this.mission04Forward).normalize();
     this.ship.group.lookAt(this.ship.group.position.clone().add(this.mission04Forward));
     this.mission04Rear.copy(this.mission04Forward).negate();
-    this.ship.mesh.rotation.z = -this.input.moveX * 0.92;
-    this.ship.mesh.rotation.x = this.input.moveY * 0.34;
-    this.ship.forwardSpeed = 72 + boost * 58 + Math.abs(this.input.moveX) * 22;
-    this.ship.boostAmount = boost ? 1 : 0.18 + Math.abs(this.input.moveX) * 0.18;
+    this.ship.mesh.rotation.z = -this.input.moveX * 0.82;
+    this.ship.mesh.rotation.x = this.input.moveY * 0.38;
+    this.ship.forwardSpeed = 62 + boost * 95 + Math.abs(this.input.moveX) * 50 + Math.abs(this.input.moveY) * 42;
+    this.ship.boostAmount = boost ? 1 : 0.22 + Math.max(Math.abs(this.input.moveX), Math.abs(this.input.moveY)) * 0.22;
     this.ship.velocity.set(
       (this.ship.group.position.x - this._prevShipPos.x) / Math.max(dt, 0.001),
       (this.ship.group.position.y - this._prevShipPos.y) / Math.max(dt, 0.001)
@@ -1406,7 +1394,7 @@ export class Game {
     this._camTarget.copy(sp)
       .addScaledVector(this.mission04Rear, 30 + this.ship.boostAmount * 8)
       .addScaledVector(this.mission04Up, 6.5)
-      .addScaledVector(this.mission04Right, -this.input.moveX * 4);
+      .addScaledVector(this.mission04Right, -this.input.moveX * 1.5);
     this.camera.position.lerp(this._camTarget, k);
 
     if (this.shake > 0) {
@@ -1417,7 +1405,7 @@ export class Game {
 
     this._look.copy(sp)
       .addScaledVector(this.mission04Forward, 42)
-      .addScaledVector(this.mission04Right, this.input.moveX * 3)
+      .addScaledVector(this.mission04Right, this.input.moveX * 1.2)
       .addScaledVector(this.mission04Up, 2);
     this.camera.lookAt(this._look);
     const targetFov = BASE_FOV + this.ship.boostAmount * 10;
