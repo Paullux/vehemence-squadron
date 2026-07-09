@@ -28,6 +28,8 @@ const _dir = new THREE.Vector3();
 const _impactDir = new THREE.Vector3();
 const _side = new THREE.Vector3();
 const _up = new THREE.Vector3();
+const _worldUp = new THREE.Vector3(0, 1, 0);
+const _basis = new THREE.Matrix4();
 
 const rand = (a, b) => a + Math.random() * (b - a);
 
@@ -252,10 +254,16 @@ export class ShieldSatelliteAssault {
     for (const sat of this.satellites) {
       if (sat.destroyed) continue;
       const drift = Math.sin(this.time * 0.22 + sat.group.userData.index) * 0.045;
-      _dir.copy(sat.dir).applyAxisAngle(new THREE.Vector3(0, 1, 0), drift);
+      _dir.copy(sat.dir).applyAxisAngle(_worldUp, drift);
       sat.group.position.copy(_dir).multiplyScalar(SHIELD_RADIUS + 10);
-      sat.group.lookAt(0, 0, 0);
-      sat.mesh.rotation.z += dt * (0.25 + sat.spin);
+      _side.crossVectors(_dir, _worldUp);
+      if (_side.lengthSq() < 0.01) _side.set(1, 0, 0);
+      _side.normalize();
+      _up.crossVectors(_side, _dir).normalize();
+      _basis.makeBasis(_side, _dir, _up);
+      sat.group.quaternion.setFromRotationMatrix(_basis);
+      sat.mesh.rotation.x = Math.PI / 2;
+      sat.mesh.rotation.y += dt * (0.25 + sat.spin);
       sat.halo.material.opacity = 0.26 + 0.14 * Math.sin(this.time * 3.1 + sat.group.userData.index);
     }
   }

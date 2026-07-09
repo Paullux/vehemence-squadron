@@ -1393,8 +1393,7 @@ export class Game {
     const k = 1 - Math.exp(-5.5 * dt);
     this._camTarget.copy(sp)
       .addScaledVector(this.mission04Rear, 30 + this.ship.boostAmount * 8)
-      .addScaledVector(this.mission04Up, 6.5)
-      .addScaledVector(this.mission04Right, -this.input.moveX * 1.5);
+      .addScaledVector(this.mission04Up, 6.5);
     this.camera.position.lerp(this._camTarget, k);
 
     if (this.shake > 0) {
@@ -1405,7 +1404,6 @@ export class Game {
 
     this._look.copy(sp)
       .addScaledVector(this.mission04Forward, 42)
-      .addScaledVector(this.mission04Right, this.input.moveX * 1.2)
       .addScaledVector(this.mission04Up, 2);
     this.camera.lookAt(this._look);
     const targetFov = BASE_FOV + this.ship.boostAmount * 10;
