@@ -36,15 +36,15 @@ export function createAquilaLampRig({ scale = 1, headlightIntensity = 72, marker
   const cockpitGlow = new THREE.PointLight(0x86ecff, markerIntensity * 1.2, 22 * scale, 1.7);
   cockpitGlow.position.set(0, 0.9 * scale, -0.5 * scale);
 
-  const portLamp = new THREE.PointLight(0xcc2630, markerIntensity * 0.35, 11 * scale, 2.1);
-  portLamp.position.set(-3.7 * scale, -0.2 * scale, -1.1 * scale);
-
   const starboardLamp = new THREE.PointLight(0x55ff99, markerIntensity, 18 * scale, 1.8);
   starboardLamp.position.set(3.7 * scale, -0.2 * scale, -1.1 * scale);
 
-  rig.add(headlight, headlightTarget, cockpitGlow, portLamp, starboardLamp);
+  // Pas de feu de position bâbord (rouge) : retiré à la demande de Paul, il
+  // se voyait trop dans les scènes de décollage du Véhémence. Rig partagé
+  // par PlayerShip et Wingman, donc ça s'applique à tout l'escadron partout.
+  rig.add(headlight, headlightTarget, cockpitGlow, starboardLamp);
   rig.userData.headlight = headlight;
-  rig.userData.markerLights = [cockpitGlow, portLamp, starboardLamp];
+  rig.userData.markerLights = [cockpitGlow, starboardLamp];
   return rig;
 }
 
