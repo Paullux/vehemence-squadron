@@ -28,7 +28,7 @@ const AIM_DEPTH = 78;
 const AIM_NEAR_DEPTH = 35;
 const AIM_RANGE_X = 30;
 const AIM_RANGE_Y = 17;
-const MISSION04_ORBIT_RADIUS = 430;
+const MISSION04_ORBIT_RADIUS = 620;
 const MISSION04_ORBIT_PITCH_LIMIT = 1.42;
 const AUDIO_SETTINGS_KEY = 'vehemence.audio';
 const MISSION_SAVE_KEY = 'vehemence.missionSave';
@@ -1430,8 +1430,8 @@ export class Game {
     const k = 1 - Math.exp(-5.5 * dt);
     const needsInitialPose = !this.mission04HasCameraPose;
     this._camTarget.copy(sp)
-      .addScaledVector(this.mission04Rear, 30 + this.ship.boostAmount * 8)
-      .addScaledVector(this.mission04Up, 6.5);
+      .addScaledVector(this.mission04Rear, 48 + this.ship.boostAmount * 12)
+      .addScaledVector(this.mission04Up, 9.5);
     if (needsInitialPose) {
       this.camera.position.copy(this._camTarget);
       this.mission04HasCameraPose = true;
@@ -1446,8 +1446,8 @@ export class Game {
     }
 
     this._look.copy(sp)
-      .addScaledVector(this.mission04Forward, 42)
-      .addScaledVector(this.mission04Up, 2);
+      .addScaledVector(this.mission04Forward, 72)
+      .addScaledVector(this.mission04Up, 3.5);
     if (this.mission04SteeringActive || needsInitialPose) {
       this.camera.lookAt(this._look);
     }
