@@ -2,6 +2,7 @@
 
 > Document de référence du projet. L'univers (section 2) est une **proposition v0.1** à
 > valider ou réécrire — tout le reste décrit des décisions actées.
+> Dernière mise à jour : 09/07/2026.
 
 ## 1. Pitch
 
@@ -106,17 +107,22 @@ checkpoint informatif ; la reprise exacte d'un état 3D viendra avec la machine
   images de référence, exports intermédiaires). Le repo `I:\jeu Space Opera Threejs`
   ne doit garder que les assets finaux optimisés nécessaires au jeu dans `public/`
   et le code source. Objectif : pouvoir itérer sur les assets sans alourdir le dépôt.
+  Les anciens fichiers de production qui avaient été placés dans `public/` ont été
+  déplacés vers `I:\jeu Space Opera Threejs - Source\public-non-runtime\` et purgés
+  de l'historique Git/LFS.
 - **ChatGPT** → concept arts (vues orthographiques pour Rodin) et **textures de planètes**
-  (équirectangulaires 2:1, pack albedo/clouds/normal/roughness/emission — voir
-  `public/textures/planets/README.md`).
+  (équirectangulaires 2:1, pack albedo/clouds/normal/roughness/emission).
 - **Rodin AI** → modèles 3D GLB (vaisseaux, stations) et HDRI d'environnement.
-- **LTX (local, 720p)** → animation des images ChatGPT en cinématiques entre les missions.
+- **LTX / Seedance** → animation des images ChatGPT en cinématiques entre les missions.
 - Placeholders en primitives Three.js tant que les assets finaux ne sont pas prêts ; le
   mesh du vaisseau joueur est isolé dans `PlayerShip.buildMesh()` pour un swap GLB facile.
 - Les modèles GLB critiques sont maintenant **préchargés et mis en cache** avant la
   création de `Game` (`preloadShipModels()` dans `src/core/ShipModel.js`) : le briefing
   de mission sert aussi d'écran de chargement, puis chaque instance clone le modèle
   déjà normalisé. Objectif : éviter les placeholders visibles au lancement.
+- Après une réécriture d'historique ou un clone, vérifier que les fichiers Git LFS
+  sont matérialisés (`git lfs pull`). Un pointeur LFS brut dans `public/` se voit par
+  une taille d'environ 130 octets et provoque des placeholders (cube, audio muet, etc.).
 
 ## 7. État actuel du prototype
 
@@ -127,6 +133,15 @@ checkpoint informatif ; la reprise exacte d'un état 3D viendra avec la machine
   (préchargement GLB + image de hangar) → sortie du *Véhémence* (~3,6 s) → gameplay.
   Le briefing actuel annonce la mission : libérer au maximum la route commerciale de
   Kharos-3 occupée par l'Hégémonie du Vide.
+- **Flux campagne actuel** : mission 1 → cinématique de fin → briefing mission 2 →
+  décollage ; mission 2 → cinématique + briefing commandant → briefing mission 3 →
+  décollage ; mission 3 → cinématique de fin → retour menu. Le score est cumulé et
+  le mode de difficulté (`PILOTE` ou `CADET`) est conservé entre les missions via les
+  paramètres d'URL.
+- **Menu de test** : pendant la phase de développement, l'écran d'intro garde un
+  sélecteur Mission 1 / Mission 2 / Mission 3 et un sélecteur de difficulté. En fin
+  de production, ce choix devra être remplacé par un flux plus simple : lancer
+  l'intro puis la campagne, ou démarrer directement au niveau 1.
 - **Sortie du Véhémence** : utilise `public/images/interieur_vehemence.png` comme
   texture transparente dans la scène Three.js, rendue devant le ciel étoilé mais
   derrière les vaisseaux. Les Aquila sortent du hangar avec traînées cyan et overlay
@@ -177,13 +192,16 @@ checkpoint informatif ; la reprise exacte d'un état 3D viendra avec la machine
   masque leurs meshes et place les marqueurs HUD rouges à leurs positions. Le dernier
   `vulnerable_target.00x` détecté est traité comme coeur/réacteur verrouillé à
   détruire en dernier.
+  Sa destruction masque maintenant le modèle complet et déclenche des sprites
+  d'explosion plus une gerbe de débris noir/rouge/rouge émissif, miroir hostile de
+  l'explosion du *Véhémence*.
 - **Cinématique de debrief** (`completeMission()` dans `src/core/Game.js`) : ~2,5 s
   après l'écran de résultats, enchaîne automatiquement sur
   `public/cinematics/first_mission_end/debrief_end_first_mission.mp4` (bouton PASSER
   disponible après 1 s). Redémarrage (ESPACE/A) verrouillé tant que la vidéo n'est
   pas terminée ou sautée (`this.debriefDone`), pour ne pas la zapper par inadvertance
-  depuis l'écran de score. Voir aussi `public/cinematics/mission_debrief/` pour le
-  script complet du prochain debrief (storyboard + prompts LTX).
+  depuis l'écran de score. Les storyboards/prompts source sont conservés hors runtime
+  dans `I:\jeu Space Opera Threejs - Source\`.
 - **Niveau 2 : Couronne Rouge** (`src/entities/AsteroidField.js`) : mission sur rail
   dans le système `kharos_red_corona`, autour de la géante rouge. Le joueur traverse
   un champ d'astéroïdes avec tourelles, puis affronte une base-astéroïde camouflée.
@@ -202,10 +220,34 @@ checkpoint informatif ; la reprise exacte d'un état 3D viendra avec la machine
 - **Cinématique de fin du niveau 2** : `completeMission()` utilise maintenant
   `public/cinematics/second_mission_end/red_corona_escape_seedance.mp4`, générée via
   Replicate / `bytedance/seedance-1.5-pro` depuis l'image source
-  `red_corona_escape_ai.png`. Les prompts et le storyboard sont conservés dans
-  `public/cinematics/second_mission_end/` et copiés côté source dans
-  `I:\jeu Space Opera Threejs - Source\pipeline-assets\cinematics\second_mission_end\`.
-  L'image IA reste disponible comme fallback si le MP4 ne charge pas.
+  `red_corona_escape_ai.png`. Les prompts et le storyboard sont conservés côté source
+  dans `I:\jeu Space Opera Threejs - Source\pipeline-assets\cinematics\second_mission_end\`.
+  L'image IA reste disponible dans `public/` comme fallback si le MP4 ne charge pas.
+- **Niveau 3 : Défense du Véhémence** (`src/entities/VehemenceDefense.js`) :
+  bataille spatiale près d'une étoile type soleil et d'une planète océanique
+  (`ocean_front`). Le niveau commence par une scène de décollage plus longue :
+  plusieurs salves de chasseurs Aquila quittent le hangar par groupes de 4, puis le
+  joueur part avec la réplique prioritaire `public/audio/voice/cest_a_notre_tout.wav`
+  ("c'est à notre tour les gars, bonne chance"). En gameplay, le joueur défend le
+  *Véhémence* contre des vagues de chasseurs, vaisseaux d'artillerie et destroyers ;
+  des figurants alliés traversent le champ de bataille et tirent en soutien. Les
+  ennemis ciblent le *Véhémence* et l'escadron, avec agressivité réduite en mode
+  `CADET` et inchangée en mode `PILOTE`. Si le bouclier du *Véhémence* tombe à zéro :
+  modèle masqué, explosions, débris blanc/gris/bleu/cyan, game over
+  **VEHEMENCE DETRUIT / ECHEC DE LA MISSION**. Si le joueur tient jusqu'à la fin :
+  **VEHEMENCE PROTEGE / ASSAUT REPOUSSE**.
+- **Cinématique de fin du niveau 3** :
+  `public/cinematics/third_mission_end/end_mission_3_debrief.mp4`, générée depuis
+  l'image de briefing hangar avec le commandant vu de dos pour éviter le lipsync.
+  Le clip Seedance court a été monté en bounce avant/arrière plusieurs fois pour
+  couvrir toute la voix `public/audio/voice/end_mission_3.wav`. Après cette
+  cinématique, retour au menu. Côté histoire, le commandant remercie Aquila d'avoir
+  permis à l'Hégémonie du Vide de sortir des systèmes contrôlés par la Confédération,
+  puis prépare l'assaut dans le propre système de l'Hégémonie.
+- **Mission 4 prévue : `MISSION 4 // Directement chez L'HEGEMONIE`**. Intention :
+  bataille près d'une planète rouge, d'une grande étoile rouge et de ses anneaux.
+  Objectif pressenti : combattre la flotte ennemie et détruire les satellites qui
+  génèrent le champ de force/bouclier planétaire de l'Hégémonie.
 - **Bouclier du héros : 100 PV** (laser ennemi -12, collision -25), régénération
   +4 PV/s après 5 s sans dégât. HUD : barre de bouclier (vert/orange/rouge), vignette
   rouge d'impact, secousse caméra. **Game over** avec score final, restart ESPACE/A.
@@ -223,8 +265,9 @@ checkpoint informatif ; la reprise exacte d'un état 3D viendra avec la machine
   **Répliques radio de l'escadron** : chaîne "radio militaire" appliquée en direct
   (filtre bandpass resserré + saturation renforcée + souffle statique procédural)
   sur des
-  enregistrements propres — voir §9 et `public/audio/prompts/voice_prompts.md`
-  pour le script à faire générer (Codex/ElevenLabs). Tant que les fichiers
+  enregistrements propres — voir §9 et
+  `I:\jeu Space Opera Threejs - Source\public-non-runtime\public\audio\prompts\voice_prompts.md`
+  pour les scripts source déplacés hors runtime. Tant que les fichiers
   `public/audio/voice/*.wav` n'existent pas, les répliques restent silencieuses
   sans erreur (chargement paresseux, avertissement console bénin en dev).
   Les voix sont volontairement boostées au mix (gain radio + slider pause jusqu'à
