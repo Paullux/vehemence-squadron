@@ -5,6 +5,7 @@ import { HERO_MODEL } from './entities/PlayerShip.js';
 import { ENEMY_TYPES } from './entities/Targets.js';
 import { MOTHERSHIP_MODEL } from './entities/MothershipBoss.js';
 import { VEHEMENCE_MODEL } from './entities/VehemenceDefense.js';
+import { SHIELD_SATELLITE_MODEL } from './entities/ShieldSatelliteAssault.js';
 
 let game = null;
 let starting = false;
@@ -16,6 +17,7 @@ const introStart = document.getElementById('intro-start');
 const mission01 = document.getElementById('mission-01');
 const mission02 = document.getElementById('mission-02');
 const mission03 = document.getElementById('mission-03');
+const mission04 = document.getElementById('mission-04');
 const difficultyPilot = document.getElementById('difficulty-pilot');
 const difficultyCadet = document.getElementById('difficulty-cadet');
 const introSkip = document.getElementById('intro-skip');
@@ -28,7 +30,7 @@ const missionProgress = document.getElementById('mission-progress');
 const missionStatus = document.getElementById('mission-status');
 const hud = document.getElementById('hud');
 
-const MODEL_PRELOADS = [HERO_MODEL, ...Object.values(ENEMY_TYPES), MOTHERSHIP_MODEL, VEHEMENCE_MODEL];
+const MODEL_PRELOADS = [HERO_MODEL, ...Object.values(ENEMY_TYPES), MOTHERSHIP_MODEL, VEHEMENCE_MODEL, SHIELD_SATELLITE_MODEL];
 const MIN_BRIEF_DURATION = 30000;
 let selectedMission = 'mission01';
 let selectedDifficulty = 'pilot';
@@ -54,6 +56,13 @@ const MISSION_BRIEFS = {
     copy:
       "L'Hégémonie a localisé le Vehemence. Aquila redécolle au coeur de la bataille pour briser les vagues d'assaut avant qu'elles ne percent son bouclier.",
     objective: 'Défendre le Vehemence, intercepter les chasseurs, neutraliser artillerie et destroyers ennemis.',
+  },
+  mission04: {
+    kicker: "MISSION 4 // DIRECTEMENT CHEZ L'HEGEMONIE",
+    title: 'BRISER LE BOUCLIER PLANETAIRE',
+    copy:
+      "Aquila entre dans le système de l'Hégémonie. La planète rouge est protégée par des satellites qui maintiennent un champ de force orbital.",
+    objective: 'Mode libre orbital : contourner la planète, détruire les satellites-boucliers, repousser les chasseurs ennemis.',
   },
 };
 
@@ -86,9 +95,11 @@ function setMission(missionId) {
   mission01.classList.toggle('active', missionId === 'mission01');
   mission02.classList.toggle('active', missionId === 'mission02');
   mission03.classList.toggle('active', missionId === 'mission03');
+  mission04.classList.toggle('active', missionId === 'mission04');
   mission01.setAttribute('aria-pressed', missionId === 'mission01' ? 'true' : 'false');
   mission02.setAttribute('aria-pressed', missionId === 'mission02' ? 'true' : 'false');
   mission03.setAttribute('aria-pressed', missionId === 'mission03' ? 'true' : 'false');
+  mission04.setAttribute('aria-pressed', missionId === 'mission04' ? 'true' : 'false');
 }
 
 async function startGame(difficulty = selectedDifficulty, options = {}) {
@@ -154,6 +165,7 @@ introPlay.addEventListener('click', playIntro);
 mission01.addEventListener('click', () => setMission('mission01'));
 mission02.addEventListener('click', () => setMission('mission02'));
 mission03.addEventListener('click', () => setMission('mission03'));
+mission04.addEventListener('click', () => setMission('mission04'));
 difficultyPilot.addEventListener('click', () => setDifficulty('pilot'));
 difficultyCadet.addEventListener('click', () => setDifficulty('cadet'));
 introStart.addEventListener('click', () => startGame());
@@ -161,7 +173,7 @@ introSkip.addEventListener('click', () => startGame());
 introVideo.addEventListener('ended', () => startGame());
 introVideo.addEventListener('error', () => startGame());
 
-if (requestedMission === 'mission01' || requestedMission === 'mission02' || requestedMission === 'mission03') {
+if (requestedMission === 'mission01' || requestedMission === 'mission02' || requestedMission === 'mission03' || requestedMission === 'mission04') {
   setMission(requestedMission);
 }
 if (requestedDifficulty === 'pilot' || requestedDifficulty === 'cadet') setDifficulty(requestedDifficulty);

@@ -7,6 +7,7 @@ import { Targets } from '../entities/Targets.js';
 import { MothershipBoss } from '../entities/MothershipBoss.js';
 import { AsteroidField } from '../entities/AsteroidField.js';
 import { VehemenceDefense } from '../entities/VehemenceDefense.js';
+import { ShieldSatelliteAssault } from '../entities/ShieldSatelliteAssault.js';
 import { ExplosionPool } from '../entities/Explosions.js';
 import { Starfield } from '../world/Starfield.js';
 import { Environment } from '../world/Environment.js';
@@ -26,6 +27,9 @@ const AIM_DEPTH = 78;
 const AIM_NEAR_DEPTH = 35;
 const AIM_RANGE_X = 30;
 const AIM_RANGE_Y = 17;
+const MISSION04_ORBIT_RADIUS = 430;
+const MISSION04_BASE_ANGULAR_SPEED = 0.18;
+const MISSION04_ORBIT_HEIGHT_LIMIT = 150;
 const AUDIO_SETTINGS_KEY = 'vehemence.audio';
 const MISSION_SAVE_KEY = 'vehemence.missionSave';
 const DEBRIEF_DELAY = 2500;
@@ -60,6 +64,7 @@ const smoothstep = (v) => {
 const getMissionSystemId = (missionId) => {
   if (missionId === 'mission02') return 'kharos_red_corona';
   if (missionId === 'mission03') return 'ocean_front';
+  if (missionId === 'mission04') return 'hegemony_red_orbit';
   return 'kharos_binary';
 };
 
@@ -103,6 +108,7 @@ export class Game {
     this.boss = new MothershipBoss(this.scene);
     this.asteroidField = new AsteroidField(this.scene);
     this.vehemenceDefense = new VehemenceDefense(this.scene);
+    this.shieldSatelliteAssault = new ShieldSatelliteAssault(this.scene);
     this.explosions = new ExplosionPool(this.scene);
     this.starfield = new Starfield(this.scene);
     // Système stellaire de la mission — voir SYSTEMS dans celestial-catalog.js
@@ -128,6 +134,13 @@ export class Game {
     this.bossStarted = false;
     this.missionComplete = false;
     this.paused = false;
+    this.mission04OrbitAngle = -1.45;
+    this.mission04OrbitHeight = 16;
+    this.mission04OrbitRadius = MISSION04_ORBIT_RADIUS;
+    this.mission04Forward = new THREE.Vector3(0, 0, -1);
+    this.mission04Right = new THREE.Vector3(1, 0, 0);
+    this.mission04Up = new THREE.Vector3(0, 1, 0);
+    this._prevShipPos = new THREE.Vector3();
 
     this.hudScore = document.getElementById('score');
     this.hudDifficulty = document.getElementById('difficulty-label');
@@ -226,6 +239,20 @@ export class Game {
   }
 
   buildMissionLighting() {
+    if (this.missionId === 'mission04') {
+      const redFill = new THREE.HemisphereLight(0xff6644, 0x150008, 0.76);
+      this.scene.add(redFill);
+
+      const hegemonyKey = new THREE.DirectionalLight(0xff331c, 1.75);
+      hegemonyKey.position.set(0.65, 0.22, 0.72).normalize();
+      this.scene.add(hegemonyKey);
+
+      const shieldGlow = new THREE.PointLight(0xff1a08, 160, 620, 1.45);
+      shieldGlow.position.set(0, -20, -430);
+      this.scene.add(shieldGlow);
+
+      return;
+    }
     if (this.missionId === 'mission03') {
       const battleFill = new THREE.HemisphereLight(0xbfd9ff, 0x101827, 0.82);
       this.scene.add(battleFill);
@@ -433,12 +460,17 @@ export class Game {
     }
 
     if (!this.gameOver && !this.missionComplete) {
-      this.ship.update(dt, this.input);
-      this.updateAimTarget(dt);
       this.missionTime += dt;
       if (this.missionId === 'mission01' && !this.bossStarted && this.missionTime >= BOSS_SPAWN_TIME) this.spawnMothership();
       if (this.missionId === 'mission02' && !this.asteroidField.active) this.startAsteroidMission();
       if (this.missionId === 'mission03' && !this.vehemenceDefense.active) this.startVehemenceDefense();
+      if (this.missionId === 'mission04' && !this.shieldSatelliteAssault.active && !this.shieldSatelliteAssault.complete) {
+        this.startShieldSatelliteAssault();
+      }
+
+      if (this.missionId === 'mission04') this.updateMission04Flight(dt);
+      else this.ship.update(dt, this.input);
+      this.updateAimTarget(dt);
 
       this.fireCooldown -= dt;
       if (this.input.fire && this.fireCooldown <= 0) {
@@ -530,6 +562,26 @@ export class Game {
       );
       if (this.vehemenceDefense.complete) this.completeMission();
       if (this.vehemenceDefense.defeated && !this.gameOver) this.die();
+    }
+    if (this.missionId === 'mission04' && !this.missionComplete) {
+      this.score += this.targets.update(
+        dt,
+        this.ship,
+        this.wingmen,
+        { light: this.enemyLasers, heavy: this.enemyHeavyLasers },
+        !this.gameOver,
+        this.sound,
+        { respawn: false, rings: false, enemyAggressionMultiplier: this.difficulty.enemyAggressionMultiplier }
+      );
+      this.score += this.shieldSatelliteAssault.update(
+        dt,
+        this.ship,
+        this.targets,
+        this.sound,
+        this.explosions,
+        { enemyAggressionMultiplier: this.difficulty.enemyAggressionMultiplier }
+      );
+      if (this.shieldSatelliteAssault.complete) this.completeMission();
     }
     if (this.missionId === 'mission01' && this.bossStarted && !this.missionComplete) {
       const launchOrigin = this.boss.consumeFighterLaunch();
@@ -707,6 +759,69 @@ export class Game {
     this.sound.playMusic('generalBoss', { volume: 0.5, fade: 1.2 });
   }
 
+  startShieldSatelliteAssault() {
+    this.bossStarted = true;
+    this.setCombatVisible(false);
+    this.hudBoss.classList.remove('hidden');
+    this.shieldSatelliteAssault.start(this.ship.group.position.z);
+    this.mission04OrbitAngle = -1.45;
+    this.mission04OrbitHeight = 18;
+    this.mission04OrbitRadius = MISSION04_ORBIT_RADIUS;
+    this.sound.playMusic('generalBoss', { volume: 0.52, fade: 1.2 });
+  }
+
+  updateMission04Flight(dt) {
+    const center = this.shieldSatelliteAssault.center;
+    this._prevShipPos.copy(this.ship.group.position);
+
+    const boost = this.input.boost ? 1 : 0;
+    const angularSpeed =
+      MISSION04_BASE_ANGULAR_SPEED +
+      this.input.moveX * 0.11 +
+      boost * 0.13;
+    this.mission04OrbitAngle += Math.max(0.055, angularSpeed) * dt;
+    this.mission04OrbitHeight = THREE.MathUtils.clamp(
+      this.mission04OrbitHeight + this.input.moveY * 86 * dt,
+      -MISSION04_ORBIT_HEIGHT_LIMIT,
+      MISSION04_ORBIT_HEIGHT_LIMIT
+    );
+    this.mission04OrbitRadius = THREE.MathUtils.clamp(
+      this.mission04OrbitRadius + (this.input.boost ? -38 : 18) * dt,
+      360,
+      470
+    );
+
+    const a = this.mission04OrbitAngle;
+    const radial = this._v.set(Math.cos(a), 0, Math.sin(a)).normalize();
+    this.mission04Up.set(0, 1, 0);
+    this.mission04Forward
+      .set(-Math.sin(a), 0, Math.cos(a))
+      .multiplyScalar(0.78)
+      .addScaledVector(radial, -0.42)
+      .normalize();
+    this.mission04Right.crossVectors(this.mission04Forward, this.mission04Up).normalize();
+
+    this.ship.group.position
+      .copy(center)
+      .addScaledVector(radial, this.mission04OrbitRadius)
+      .addScaledVector(this.mission04Up, this.mission04OrbitHeight);
+    this.ship.group.lookAt(this.ship.group.position.clone().add(this.mission04Forward));
+    this.ship.mesh.rotation.z = -this.input.moveX * 0.72;
+    this.ship.mesh.rotation.x = this.input.moveY * 0.26;
+    this.ship.forwardSpeed = 72 + boost * 58 + Math.abs(this.input.moveX) * 22;
+    this.ship.boostAmount = boost ? 1 : 0.18 + Math.abs(this.input.moveX) * 0.18;
+    this.ship.velocity.set(
+      (this.ship.group.position.x - this._prevShipPos.x) / Math.max(dt, 0.001),
+      (this.ship.group.position.y - this._prevShipPos.y) / Math.max(dt, 0.001)
+    );
+    const flicker = 1 + this.ship.boostAmount * 0.8 + Math.sin(performance.now() * 0.02) * 0.06;
+    this.ship.engineGlow.scale.setScalar(flicker);
+    this.ship.engineLight.intensity = 30 + this.ship.boostAmount * 28;
+    this.ship.lampRig.userData.headlight.intensity = 82 + this.ship.boostAmount * 24;
+    this.ship.halo.material.opacity = 0.22 + this.ship.boostAmount * 0.15;
+    this.ship.halo.scale.setScalar(12 * (1 + this.ship.boostAmount * 0.4));
+  }
+
   updateLaunch(dt) {
     this.launchTime += dt;
     const t = this.launchTime;
@@ -824,19 +939,23 @@ export class Game {
 
   updateAimTarget(dt) {
     const sp = this.ship.group.position;
-    const desired = this._v.set(
-      sp.x + this.input.aimX * AIM_RANGE_X,
-      sp.y + this.input.aimY * AIM_RANGE_Y,
-      sp.z - AIM_DEPTH
-    );
+    let desired;
+    if (this.missionId === 'mission04') {
+      desired = this._v.copy(sp)
+        .addScaledVector(this.mission04Forward, AIM_DEPTH)
+        .addScaledVector(this.mission04Right, this.input.aimX * AIM_RANGE_X)
+        .addScaledVector(this.mission04Up, this.input.aimY * AIM_RANGE_Y);
+    } else {
+      desired = this._v.set(
+        sp.x + this.input.aimX * AIM_RANGE_X,
+        sp.y + this.input.aimY * AIM_RANGE_Y,
+        sp.z - AIM_DEPTH
+      );
+    }
     this._aimTarget.lerp(desired, 1 - Math.exp(-14 * dt));
     const nearT = AIM_NEAR_DEPTH / AIM_DEPTH;
     this.aimFarReticle.position.copy(this._aimTarget);
-    this.aimNearReticle.position.set(
-      sp.x + (this._aimTarget.x - sp.x) * nearT,
-      sp.y + (this._aimTarget.y - sp.y) * nearT,
-      sp.z - AIM_NEAR_DEPTH
-    );
+    this.aimNearReticle.position.copy(sp).lerp(this._aimTarget, nearT);
   }
 
   handleCollisions() {
@@ -892,6 +1011,7 @@ export class Game {
         this.applyDamage(amt * this.difficulty.receivedDamageMultiplier)
       );
     }
+    if (this.missionId === 'mission04') this.handleShieldSatelliteCollisions();
 
     // Lasers ennemis → n'importe quel appareil de l'escadron (dégâts du bolt)
     for (const pool of [this.enemyLasers, this.enemyHeavyLasers]) {
@@ -927,6 +1047,15 @@ export class Game {
     });
   }
 
+  handleShieldSatelliteCollisions() {
+    this.lasers.forEachActive((laser) => {
+      const result = this.shieldSatelliteAssault.handleLaser(laser, this.explosions, this.sound);
+      if (!result.hit) return;
+      this.lasers.release(laser);
+      if (result.score > 0) this.score += result.score;
+    });
+  }
+
   completeMission() {
     if (this.missionComplete) return;
     this.missionComplete = true;
@@ -937,6 +1066,9 @@ export class Game {
     } else if (this.missionId === 'mission03') {
       this.hudMissionCompleteTitle.textContent = 'VEHEMENCE PROTEGE';
       this.hudMissionCompleteSubtitle.textContent = 'ASSAUT REPOUSSE';
+    } else if (this.missionId === 'mission04') {
+      this.hudMissionCompleteTitle.textContent = 'BOUCLIER OUVERT';
+      this.hudMissionCompleteSubtitle.textContent = 'SATELLITES DETRUITS';
     } else {
       this.hudMissionCompleteTitle.textContent = 'ROUTE LIBEREE';
       this.hudMissionCompleteSubtitle.textContent = 'VAISSEAU-MERE DETRUIT';
@@ -1066,6 +1198,10 @@ export class Game {
       location.href = `${location.origin}${location.pathname}`;
       return;
     }
+    if (this.missionId === 'mission04') {
+      location.href = `${location.origin}${location.pathname}`;
+      return;
+    }
     this.hudMissionComplete.classList.remove('hidden');
   }
 
@@ -1135,6 +1271,10 @@ export class Game {
   }
 
   updateCamera(dt) {
+    if (this.missionId === 'mission04') {
+      this.updateMission04Camera(dt);
+      return;
+    }
     const sp = this.ship.group.position;
     const k = 1 - Math.exp(-6 * dt);
 
@@ -1152,6 +1292,33 @@ export class Game {
     this.camera.lookAt(this._look);
 
     const targetFov = BASE_FOV + this.ship.boostAmount * 12;
+    if (Math.abs(targetFov - this.camera.fov) > 0.01) {
+      this.camera.fov += (targetFov - this.camera.fov) * k;
+      this.camera.updateProjectionMatrix();
+    }
+  }
+
+  updateMission04Camera(dt) {
+    const sp = this.ship.group.position;
+    const k = 1 - Math.exp(-5.5 * dt);
+    this._camTarget.copy(sp)
+      .addScaledVector(this.mission04Forward, -34 - this.ship.boostAmount * 8)
+      .addScaledVector(this.mission04Up, 8.5)
+      .addScaledVector(this.mission04Right, -this.input.moveX * 8);
+    this.camera.position.lerp(this._camTarget, k);
+
+    if (this.shake > 0) {
+      this.shake = Math.max(0, this.shake - dt * 1.6);
+      this.camera.position.x += (Math.random() - 0.5) * this.shake * 1.6;
+      this.camera.position.y += (Math.random() - 0.5) * this.shake * 1.6;
+    }
+
+    this._look.copy(sp)
+      .addScaledVector(this.mission04Forward, 84)
+      .addScaledVector(this.mission04Right, this.input.moveX * 5)
+      .addScaledVector(this.mission04Up, 3);
+    this.camera.lookAt(this._look);
+    const targetFov = BASE_FOV + this.ship.boostAmount * 10;
     if (Math.abs(targetFov - this.camera.fov) > 0.01) {
       this.camera.fov += (targetFov - this.camera.fov) * k;
       this.camera.updateProjectionMatrix();
@@ -1200,6 +1367,7 @@ export class Game {
 
     if (this.bossStarted && !this.boss.defeated) {
       const bossHud =
+        this.missionId === 'mission04' ? this.shieldSatelliteAssault :
         this.missionId === 'mission03' ? this.vehemenceDefense :
         this.missionId === 'mission02' ? this.asteroidField :
         this.boss;

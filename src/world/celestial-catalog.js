@@ -66,6 +66,16 @@ export const SYSTEMS = {
       { id: 'desert_planete', position: [1250, -520, -3200] },
     ],
   },
+  hegemony_red_orbit: {
+    stars: [
+      { id: 'big_red_star', position: [780, 260, -1850], main: true, lightIntensity: 2.6, ringTilt: 1.12, ringRotation: 0.22 },
+      { id: 'sun_star', position: [-1500, 420, -3400], lightIntensity: 0.18 },
+    ],
+    planets: [
+      { id: 'desert_planete', position: [0, -60, -1450] },
+      { id: 'cratere_moon', position: [0, -60, -1450], orbit: { around: 0, radius: 520, speed: 0.018, tilt: 0.32 } },
+    ],
+  },
 };
 
 export const PLANETS = {
