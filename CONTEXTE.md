@@ -63,7 +63,7 @@ de "mondes libres" masquent une logique coloniale et extractive plus profonde.
 | Mode | Description | Statut |
 |---|---|---|
 | **Vol sur rail spatial** | Avance automatique, déplacement dans un cadre, roulis/tangage visuels, double réticule, vagues ennemies | ✅ Prototype jouable |
-| **Vol libre six axes** | Arène de dogfight, liberté complète autour de cibles lourdes, IA d'escadron plus indépendante | 🔜 À construire après un premier boss |
+| **Vol libre six axes** | Arène de dogfight, liberté complète autour de cibles lourdes, IA d'escadron plus indépendante | ✅ Livré en mission 4 (voir §7) |
 | **Vol sur rail planétaire** | Même ADN arcade que le rail spatial, mais avec sol, relief, horizon, bases et tourelles | ⏳ Deuxième grande extension |
 | **Combat au sol** | Fusils à plasma, progression à pied, bataille ultime lorsque les héros peuvent enfin affronter l'ennemi au sol | 🌙 Fin de jeu / long terme |
 
@@ -135,13 +135,16 @@ checkpoint informatif ; la reprise exacte d'un état 3D viendra avec la machine
   Kharos-3 occupée par l'Hégémonie du Vide.
 - **Flux campagne actuel** : mission 1 → cinématique de fin → briefing mission 2 →
   décollage ; mission 2 → cinématique + briefing commandant → briefing mission 3 →
-  décollage ; mission 3 → cinématique de fin → retour menu. Le score est cumulé et
-  le mode de difficulté (`PILOTE` ou `CADET`) est conservé entre les missions via les
-  paramètres d'URL.
+  décollage ; mission 3 → cinématique de fin → briefing mission 4 → décollage ;
+  mission 4 → cinématique de fin → retour menu (rechargement sans paramètres d'URL).
+  Chaque transition passe par l'URL (`mission`, `difficulty`, `score`, `autostart=1`) :
+  le score est cumulé et le mode de difficulté (`PILOTE` ou `CADET`) conservé sur
+  toute la campagne. Vérifié en direct de bout en bout (fin mission 3 → auto-lancement
+  mission 4 avec score transmis) le 09/07/2026.
 - **Menu de test** : pendant la phase de développement, l'écran d'intro garde un
-  sélecteur Mission 1 / Mission 2 / Mission 3 et un sélecteur de difficulté. En fin
-  de production, ce choix devra être remplacé par un flux plus simple : lancer
-  l'intro puis la campagne, ou démarrer directement au niveau 1.
+  sélecteur Mission 1 / Mission 2 / Mission 3 / Mission 4 et un sélecteur de
+  difficulté. En fin de production, ce choix devra être remplacé par un flux plus
+  simple : lancer l'intro puis la campagne, ou démarrer directement au niveau 1.
 - **Sortie du Véhémence** : utilise `public/images/interieur_vehemence.png` comme
   texture transparente dans la scène Three.js, rendue devant le ciel étoilé mais
   derrière les vaisseaux. Les Aquila sortent du hangar avec traînées cyan et overlay
@@ -328,19 +331,29 @@ Priorité de design actée après discussion :
   4. destruction de points faibles (tourelles, batteries, coeur/réacteur) ;
   5. ailiers survivants en attaques scriptées autour des modules ;
   6. explosion finale, musique de victoire, écran "ROUTE COMMERCIALE LIBEREE".
-- Le vol libre six axes reste une cible importante, mais plutôt pour une v2 du combat
-  contre capital ship : liberté autour du boss, survivants autonomes, attaque sous
-  plusieurs angles.
+- Le vol libre six axes, envisagé au départ comme une v2 du combat contre capital
+  ship, a finalement été livré en **mission 4** : liberté de mouvement autour de la
+  planète rouge (longitude/latitude, recentrage désactivé) pour atteindre les
+  satellites-boucliers sous tous les angles.
 - La base ennemie sur planète reste une excellente piste pour plus tard : elle demande
   un mode rail planétaire avec sol, relief, brouillard/HDRI Rodin AI, tourelles et
   règles d'altitude lisibles.
 
-Phase "structure" (architecture, avec Fable 5) :
-1. Machine à états : menu / cinématique / vol rail / all-range / game over
-2. Mode all-range (contrôles libres, caméra de poursuite, IA de dogfight basique)
-3. Système de missions scriptables (vagues, événements, dialogues radio)
-4. Pipeline branché : chargeur GLB Rodin, HDRI skybox, lecteur cinématiques LTX
-5. Santé/boucliers, dégâts, game over
+Phase "structure" — **terminée** : machine à états (menu / cinématique / briefing /
+vol rail / all-range / debrief / game over via `missionId` + flags dans `Game.js`),
+mode all-range (mission 4), 4 missions scriptables complètes avec vagues/boss/
+événements/dialogues radio, pipeline GLB Rodin + cinématiques Seedance/LTX branché,
+bouclier/dégâts/game over.
+
+Prochaines pistes (non actées, à discuter) :
+- Remplacer le menu de test (sélecteur Mission 1-4 + difficulté) par un vrai flux de
+  production : intro → campagne complète, ou reprise au niveau atteint.
+- Équilibrage général maintenant que les 4 missions s'enchaînent (`DIFFICULTIES` dans
+  `src/core/combat.js` : `pilot` vs `cadet`, multiplicateurs dégâts/régén/agressivité).
+- Rail planétaire + combat au sol (§2, "second temps long") : le prisonnier ennemi et
+  le retournement moral écologique sont écrits, pas encore montés en mission jouable.
+- Remplacement des dernières primitives par des modèles Rodin dédiés (tourelles/
+  hangars d'astéroïde, voir §7 niveau 2).
 
 Phase "contenu" (itération, transférable à Opus 4.8) : nouvelles missions, ennemis,
 équilibrage, intégration d'assets, écrans d'UI, sons.
