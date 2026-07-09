@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { loadShipModel } from '../core/ShipModel.js';
+import { assetUrl } from '../core/assetUrl.js';
 import { makeHaloSprite } from '../core/halo.js';
 
 export const SHIELD_SATELLITE_MODEL = {
@@ -14,6 +15,13 @@ const SHIELD_RADIUS = 270;
 const PLANET_RADIUS = 190;
 const SATELLITE_HP = 6;
 const FIGHTER_WAVE_INTERVAL = 5.2;
+const PLANET_TEXTURES = {
+  albedo: '/textures/planets/desert_planete/planet_albedo.png',
+  normal: '/textures/planets/desert_planete/planet_normal.png',
+  roughness: '/textures/planets/desert_planete/planet_roughness.png',
+  emission: '/textures/planets/desert_planete/planet_emission.png',
+};
+const textureLoader = new THREE.TextureLoader();
 const _origin = new THREE.Vector3();
 const _dir = new THREE.Vector3();
 const _impactDir = new THREE.Vector3();
@@ -107,12 +115,20 @@ export class ShieldSatelliteAssault {
   }
 
   buildPlanetAndShield() {
+    const albedo = textureLoader.load(assetUrl(PLANET_TEXTURES.albedo));
+    albedo.colorSpace = THREE.SRGBColorSpace;
+    const emission = textureLoader.load(assetUrl(PLANET_TEXTURES.emission));
+    emission.colorSpace = THREE.SRGBColorSpace;
     this.planet = new THREE.Mesh(
       new THREE.SphereGeometry(PLANET_RADIUS, 72, 48),
       new THREE.MeshStandardMaterial({
-        color: 0x8c1715,
-        emissive: 0x220304,
-        emissiveIntensity: 0.22,
+        map: albedo,
+        normalMap: textureLoader.load(assetUrl(PLANET_TEXTURES.normal)),
+        roughnessMap: textureLoader.load(assetUrl(PLANET_TEXTURES.roughness)),
+        emissiveMap: emission,
+        color: 0xb42a22,
+        emissive: 0x3c0504,
+        emissiveIntensity: 0.32,
         roughness: 0.88,
         metalness: 0.02,
       })
@@ -234,7 +250,7 @@ export class ShieldSatelliteAssault {
       if (sat.destroyed) continue;
       const drift = Math.sin(this.time * 0.22 + sat.group.userData.index) * 0.045;
       _dir.copy(sat.dir).applyAxisAngle(new THREE.Vector3(0, 1, 0), drift);
-      sat.group.position.copy(_dir).multiplyScalar(SHIELD_RADIUS * 1.14);
+      sat.group.position.copy(_dir).multiplyScalar(SHIELD_RADIUS + 10);
       sat.group.lookAt(0, 0, 0);
       sat.mesh.rotation.z += dt * (0.25 + sat.spin);
       sat.halo.material.opacity = 0.26 + 0.14 * Math.sin(this.time * 3.1 + sat.group.userData.index);

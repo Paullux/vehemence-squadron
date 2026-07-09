@@ -15,6 +15,7 @@ import { SoundManager } from './SoundManager.js';
 import { loadShipModel } from './ShipModel.js';
 import { MAX_HP, REGEN_DELAY, REGEN_RATE, getDifficulty } from './combat.js';
 import { assetUrl } from './assetUrl.js';
+import { makeHaloSprite } from './halo.js';
 
 const BASE_FOV = 70;
 const FORWARD = new THREE.Vector3(0, 0, -1);
@@ -30,6 +31,7 @@ const AIM_RANGE_Y = 17;
 const MISSION04_ORBIT_RADIUS = 430;
 const MISSION04_BASE_ANGULAR_SPEED = 0.18;
 const MISSION04_ORBIT_HEIGHT_LIMIT = 150;
+const MISSION04_LANE_LIMIT = 115;
 const AUDIO_SETTINGS_KEY = 'vehemence.audio';
 const MISSION_SAVE_KEY = 'vehemence.missionSave';
 const DEBRIEF_DELAY = 2500;
@@ -119,6 +121,7 @@ export class Game {
 
     this.buildReticles();
     this.buildLaunchSequence();
+    this.buildMission04CameraSquadron();
 
     this.score = Math.max(0, Math.floor(Number(options.initialScore) || 0));
     this.fireCooldown = 0;
@@ -137,9 +140,11 @@ export class Game {
     this.mission04OrbitAngle = -1.45;
     this.mission04OrbitHeight = 16;
     this.mission04OrbitRadius = MISSION04_ORBIT_RADIUS;
+    this.mission04OrbitLane = 0;
     this.mission04Forward = new THREE.Vector3(0, 0, -1);
     this.mission04Right = new THREE.Vector3(1, 0, 0);
     this.mission04Up = new THREE.Vector3(0, 1, 0);
+    this.mission04Rear = new THREE.Vector3(0, 0, 1);
     this._prevShipPos = new THREE.Vector3();
 
     this.hudScore = document.getElementById('score');
@@ -376,6 +381,53 @@ export class Game {
     }
   }
 
+  buildMission04CameraSquadron() {
+    if (this.missionId !== 'mission04') return;
+
+    this.mission04CameraSquadron = new THREE.Group();
+    this.mission04CameraSquadron.visible = false;
+    this.camera.add(this.mission04CameraSquadron);
+
+    const fallbackGeo = new THREE.ConeGeometry(0.42, 2.2, 8);
+    fallbackGeo.rotateX(-Math.PI / 2);
+    const fallbackMat = new THREE.MeshStandardMaterial({
+      color: 0xb7c4d5,
+      metalness: 0.45,
+      roughness: 0.38,
+      flatShading: true,
+    });
+    const slots = [
+      { pos: [0, -3.2, -13.5], scale: 0.42 },
+      { pos: [-5.2, -1.8, -18.5], scale: 0.34 },
+      { pos: [5.2, -1.8, -18.5], scale: 0.34 },
+      { pos: [0, 1.6, -22.5], scale: 0.3 },
+    ];
+    this.mission04CameraShips = slots.map((slot) => {
+      const root = new THREE.Group();
+      root.position.set(...slot.pos);
+      root.scale.setScalar(slot.scale);
+      root.rotation.y = Math.PI;
+      const mesh = new THREE.Group();
+      mesh.add(new THREE.Mesh(fallbackGeo, fallbackMat));
+      const engine = makeHaloSprite({ color: 0x55ddff, size: 3.8, opacity: 0.55 });
+      engine.position.z = 4.4;
+      root.add(mesh, engine);
+      this.mission04CameraSquadron.add(root);
+      return { root, mesh, engine };
+    });
+
+    loadShipModel(HERO_MODEL)
+      .then((model) => {
+        for (const ship of this.mission04CameraShips) {
+          ship.mesh.clear();
+          const clone = model.clone(true);
+          clone.rotation.y += Math.PI;
+          ship.mesh.add(clone);
+        }
+      })
+      .catch((err) => console.error('Aquila camera mission 4 indisponible - placeholders conserves', err));
+  }
+
   buildLaunchExtras() {
     const extras = [];
     const extraGeo = new THREE.ConeGeometry(1, 5.5, 8);
@@ -490,9 +542,13 @@ export class Game {
 
     // Les ailiers volent même après la mort du joueur (ils escortent l'épave)
     if (!this.missionComplete) {
-      for (const w of this.wingmen) w.update(dt, this.ship, this.targets, this.lasers, this.sound, {
-        regenRateMultiplier: this.difficulty.regenRateMultiplier,
-      });
+      if (this.missionId === 'mission04') {
+        this.updateMission04Wingmen(dt);
+      } else {
+        for (const w of this.wingmen) w.update(dt, this.ship, this.targets, this.lasers, this.sound, {
+          regenRateMultiplier: this.difficulty.regenRateMultiplier,
+        });
+      }
     }
 
     this.lasers.update(dt);
@@ -764,9 +820,13 @@ export class Game {
     this.setCombatVisible(false);
     this.hudBoss.classList.remove('hidden');
     this.shieldSatelliteAssault.start(this.ship.group.position.z);
+    this.ship.group.visible = false;
+    for (const wingman of this.wingmen) wingman.group.visible = false;
+    if (this.mission04CameraSquadron) this.mission04CameraSquadron.visible = true;
     this.mission04OrbitAngle = -1.45;
     this.mission04OrbitHeight = 18;
     this.mission04OrbitRadius = MISSION04_ORBIT_RADIUS;
+    this.mission04OrbitLane = 0;
     this.sound.playMusic('generalBoss', { volume: 0.52, fade: 1.2 });
   }
 
@@ -781,15 +841,21 @@ export class Game {
       boost * 0.13;
     this.mission04OrbitAngle += Math.max(0.055, angularSpeed) * dt;
     this.mission04OrbitHeight = THREE.MathUtils.clamp(
-      this.mission04OrbitHeight + this.input.moveY * 86 * dt,
+      this.mission04OrbitHeight + this.input.moveY * 118 * dt,
       -MISSION04_ORBIT_HEIGHT_LIMIT,
       MISSION04_ORBIT_HEIGHT_LIMIT
     );
     this.mission04OrbitRadius = THREE.MathUtils.clamp(
-      this.mission04OrbitRadius + (this.input.boost ? -38 : 18) * dt,
-      360,
-      470
+      this.mission04OrbitRadius + (this.input.boost ? -58 : 24) * dt,
+      320,
+      520
     );
+    this.mission04OrbitLane = THREE.MathUtils.clamp(
+      this.mission04OrbitLane + this.input.moveX * 92 * dt,
+      -MISSION04_LANE_LIMIT,
+      MISSION04_LANE_LIMIT
+    );
+    this.mission04OrbitLane *= Math.exp(-0.42 * dt);
 
     const a = this.mission04OrbitAngle;
     const radial = this._v.set(Math.cos(a), 0, Math.sin(a)).normalize();
@@ -804,10 +870,12 @@ export class Game {
     this.ship.group.position
       .copy(center)
       .addScaledVector(radial, this.mission04OrbitRadius)
-      .addScaledVector(this.mission04Up, this.mission04OrbitHeight);
+      .addScaledVector(this.mission04Up, this.mission04OrbitHeight)
+      .addScaledVector(this.mission04Right, this.mission04OrbitLane);
     this.ship.group.lookAt(this.ship.group.position.clone().add(this.mission04Forward));
-    this.ship.mesh.rotation.z = -this.input.moveX * 0.72;
-    this.ship.mesh.rotation.x = this.input.moveY * 0.26;
+    this.mission04Rear.copy(this.mission04Forward).negate();
+    this.ship.mesh.rotation.z = -this.input.moveX * 0.92;
+    this.ship.mesh.rotation.x = this.input.moveY * 0.34;
     this.ship.forwardSpeed = 72 + boost * 58 + Math.abs(this.input.moveX) * 22;
     this.ship.boostAmount = boost ? 1 : 0.18 + Math.abs(this.input.moveX) * 0.18;
     this.ship.velocity.set(
@@ -820,6 +888,38 @@ export class Game {
     this.ship.lampRig.userData.headlight.intensity = 82 + this.ship.boostAmount * 24;
     this.ship.halo.material.opacity = 0.22 + this.ship.boostAmount * 0.15;
     this.ship.halo.scale.setScalar(12 * (1 + this.ship.boostAmount * 0.4));
+    this.updateMission04CameraSquadron(dt);
+  }
+
+  updateMission04CameraSquadron(dt) {
+    if (!this.mission04CameraSquadron) return;
+    this.mission04CameraSquadron.visible = true;
+    const t = performance.now() * 0.001;
+    for (let i = 0; i < this.mission04CameraShips.length; i++) {
+      const ship = this.mission04CameraShips[i];
+      ship.root.rotation.z = -this.input.moveX * (0.18 + i * 0.04);
+      ship.root.rotation.x = this.input.moveY * 0.08 + Math.sin(t * 1.4 + i) * 0.015;
+      ship.engine.material.opacity = 0.45 + this.ship.boostAmount * 0.32 + Math.sin(t * 18 + i) * 0.04;
+      ship.engine.scale.setScalar(1 + this.ship.boostAmount * 0.35);
+    }
+  }
+
+  updateMission04Wingmen(dt) {
+    for (let i = 0; i < this.wingmen.length; i++) {
+      const wingman = this.wingmen[i];
+      if (!wingman.alive) continue;
+      wingman.update(dt, this.ship, this.targets, this.lasers, this.sound, {
+        regenRateMultiplier: this.difficulty.regenRateMultiplier,
+      });
+      const offset = wingman.offset;
+      wingman.group.position.copy(this.ship.group.position)
+        .addScaledVector(this.mission04Right, offset.x)
+        .addScaledVector(this.mission04Up, offset.y + Math.sin(performance.now() * 0.0015 + i) * 0.6)
+        .addScaledVector(this.mission04Forward, offset.z - 4);
+      wingman.group.quaternion.copy(this.ship.group.quaternion);
+      wingman.mesh.rotation.z = this.ship.mesh.rotation.z * 0.7 + (i - 1) * 0.08;
+      wingman.mesh.rotation.x = this.ship.mesh.rotation.x * 0.55;
+    }
   }
 
   updateLaunch(dt) {
@@ -1060,6 +1160,7 @@ export class Game {
     if (this.missionComplete) return;
     this.missionComplete = true;
     this.hudBoss.classList.add('hidden');
+    if (this.mission04CameraSquadron) this.mission04CameraSquadron.visible = false;
     if (this.missionId === 'mission02') {
       this.hudMissionCompleteTitle.textContent = 'COURONNE SECURISEE';
       this.hudMissionCompleteSubtitle.textContent = 'BASE-ASTEROIDE DETRUITE';
@@ -1265,6 +1366,7 @@ export class Game {
       this.explosions.spawn(this.ship.group.position);
     }
     this.ship.group.visible = false;
+    if (this.mission04CameraSquadron) this.mission04CameraSquadron.visible = false;
     this.aimGroup.visible = false;
     this.hudGameOver.classList.remove('hidden');
     document.body.classList.remove('cursor-hidden');
@@ -1302,9 +1404,9 @@ export class Game {
     const sp = this.ship.group.position;
     const k = 1 - Math.exp(-5.5 * dt);
     this._camTarget.copy(sp)
-      .addScaledVector(this.mission04Forward, -34 - this.ship.boostAmount * 8)
-      .addScaledVector(this.mission04Up, 8.5)
-      .addScaledVector(this.mission04Right, -this.input.moveX * 8);
+      .addScaledVector(this.mission04Rear, 30 + this.ship.boostAmount * 8)
+      .addScaledVector(this.mission04Up, 6.5)
+      .addScaledVector(this.mission04Right, -this.input.moveX * 4);
     this.camera.position.lerp(this._camTarget, k);
 
     if (this.shake > 0) {
@@ -1314,9 +1416,9 @@ export class Game {
     }
 
     this._look.copy(sp)
-      .addScaledVector(this.mission04Forward, 84)
-      .addScaledVector(this.mission04Right, this.input.moveX * 5)
-      .addScaledVector(this.mission04Up, 3);
+      .addScaledVector(this.mission04Forward, 42)
+      .addScaledVector(this.mission04Right, this.input.moveX * 3)
+      .addScaledVector(this.mission04Up, 2);
     this.camera.lookAt(this._look);
     const targetFov = BASE_FOV + this.ship.boostAmount * 10;
     if (Math.abs(targetFov - this.camera.fov) > 0.01) {
