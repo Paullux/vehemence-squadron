@@ -27,6 +27,7 @@ const VULNERABLE_TARGET_RE = /^vulnerable_target(?:[._-]?\d+)?$/i;
 const MIN_PRESENTATION_TURN = Math.PI;
 const PRESENTATION_TURN_DURATION = 38;
 const WEAK_POINT_FACING_THRESHOLD = -0.45;
+const DEBRIS_COUNT = 64;
 const LAUNCH_BAYS = [
   new THREE.Vector3(-32, -12, 34),
   new THREE.Vector3(32, -12, 28),
@@ -38,6 +39,9 @@ const _dir = new THREE.Vector3();
 const _origin = new THREE.Vector3();
 const _normal = new THREE.Vector3();
 const _toShip = new THREE.Vector3();
+const _debrisSpin = new THREE.Vector3();
+
+const rand = (a, b) => a + Math.random() * (b - a);
 
 export class MothershipBoss {
   constructor(scene) {
@@ -61,6 +65,7 @@ export class MothershipBoss {
     this.buildPlaceholder();
     this.buildWeakPoints();
     this.buildBossLights();
+    this.buildDebris();
     this.loadModel();
   }
 
@@ -138,6 +143,41 @@ export class MothershipBoss {
     this.group.add(coldRim, redCore);
   }
 
+  buildDebris() {
+    this.debrisGroup = new THREE.Group();
+    this.debrisGroup.visible = false;
+    this.scene.add(this.debrisGroup);
+
+    const geometries = [
+      new THREE.BoxGeometry(1, 0.2, 4.2),
+      new THREE.BoxGeometry(2.3, 0.28, 1.2),
+      new THREE.TetrahedronGeometry(1.05, 0),
+      new THREE.ConeGeometry(0.65, 2.4, 5),
+    ];
+    const materials = [
+      new THREE.MeshStandardMaterial({ color: 0x05060a, emissive: 0x170006, emissiveIntensity: 0.36, metalness: 0.72, roughness: 0.44, flatShading: true }),
+      new THREE.MeshStandardMaterial({ color: 0x171016, emissive: 0x360006, emissiveIntensity: 0.55, metalness: 0.68, roughness: 0.48, flatShading: true }),
+      new THREE.MeshStandardMaterial({ color: 0x52080a, emissive: 0xff1608, emissiveIntensity: 1.05, metalness: 0.44, roughness: 0.32, flatShading: true }),
+      new THREE.MeshStandardMaterial({ color: 0x9b1510, emissive: 0xff3a12, emissiveIntensity: 1.45, metalness: 0.36, roughness: 0.28, flatShading: true }),
+    ];
+
+    this.debris = [];
+    for (let i = 0; i < DEBRIS_COUNT; i++) {
+      const mesh = new THREE.Mesh(
+        geometries[i % geometries.length],
+        materials[Math.floor(Math.random() * materials.length)]
+      );
+      mesh.visible = false;
+      this.debrisGroup.add(mesh);
+      this.debris.push({
+        mesh,
+        velocity: new THREE.Vector3(),
+        spin: new THREE.Vector3(),
+        life: 0,
+      });
+    }
+  }
+
   loadModel() {
     loadShipModel(MOTHERSHIP_MODEL)
       .then((model) => {
@@ -195,6 +235,8 @@ export class MothershipBoss {
     if (this.active || this.defeated) return;
     this.active = true;
     this.group.visible = true;
+    this.debrisGroup.visible = false;
+    for (const piece of this.debris) piece.mesh.visible = false;
     this.arrival = 0;
     this.time = 0;
     this.presentationYaw = -MIN_PRESENTATION_TURN * 0.5;
@@ -202,6 +244,7 @@ export class MothershipBoss {
   }
 
   update(dt, ship, pools, canFire, sound = null, { enemyAggressionMultiplier = 1 } = {}) {
+    this.updateDebris(dt);
     if (!this.active || this.defeated) return 0;
     const aggression = Math.max(0.25, enemyAggressionMultiplier);
 
@@ -306,22 +349,66 @@ export class MothershipBoss {
   }
 
   destroy(explosions, sound = null) {
+    if (this.defeated) return;
     this.defeated = true;
     this.active = false;
+    const center = this.group.position.clone();
     const bursts = [
+      [0, 0, 0],
       [0, 0, -58],
       [-26, 7, -22],
       [30, -3, 18],
       [-18, -8, 32],
       [18, 10, -8],
+      [-42, 12, -86],
+      [46, -11, -40],
+      [0, 20, 64],
+      [-36, -15, 72],
+      [38, 8, 104],
     ];
     for (const p of bursts) {
       _world.set(...p);
       this.group.localToWorld(_world);
-      explosions.spawn(_world);
+      explosions.spawn(_world, { scale: rand(18, 36) });
     }
-    sound?.explosion('big', this.group.position);
+    sound?.explosion('big', center);
     this.group.visible = false;
+    this.debrisGroup.visible = true;
+
+    for (const piece of this.debris) {
+      _dir.randomDirection();
+      _origin.copy(center).add(new THREE.Vector3(rand(-54, 54), rand(-22, 28), rand(-118, 124)));
+      piece.mesh.position.copy(_origin);
+      piece.mesh.rotation.set(rand(0, Math.PI), rand(0, Math.PI), rand(0, Math.PI));
+      piece.mesh.scale.set(rand(1.1, 4.4), rand(0.7, 2.5), rand(1.6, 5.2));
+      piece.velocity.copy(_dir).multiplyScalar(rand(22, 68));
+      piece.velocity.z += rand(-28, 48);
+      piece.spin.set(rand(-3.2, 3.2), rand(-3.2, 3.2), rand(-3.8, 3.8));
+      piece.life = rand(3.6, 6.8);
+      piece.mesh.visible = true;
+    }
+  }
+
+  updateDebris(dt) {
+    if (!this.debrisGroup?.visible) return;
+    let anyVisible = false;
+    for (const piece of this.debris) {
+      if (!piece.mesh.visible) continue;
+      piece.life -= dt;
+      if (piece.life <= 0) {
+        piece.mesh.visible = false;
+        continue;
+      }
+      anyVisible = true;
+      piece.velocity.multiplyScalar(Math.exp(-0.3 * dt));
+      piece.mesh.position.addScaledVector(piece.velocity, dt);
+      _debrisSpin.copy(piece.spin).multiplyScalar(dt);
+      piece.mesh.rotation.x += _debrisSpin.x;
+      piece.mesh.rotation.y += _debrisSpin.y;
+      piece.mesh.rotation.z += _debrisSpin.z;
+      piece.mesh.scale.multiplyScalar(1 + dt * 0.018);
+    }
+    this.debrisGroup.visible = anyVisible;
   }
 
   getProgress() {
