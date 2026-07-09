@@ -29,7 +29,7 @@ export const ENEMY_TYPES = {
     url: '/space_ships/ennemies/basic_fighter/base_basic_pbr.glb',
     emissiveUrl: '/space_ships/ennemies/basic_fighter/texture_emissive.png',
     rotationY: 0,
-    count: 6,
+    count: 12,
     length: 9,
     hp: 1,
     score: 50,
@@ -108,6 +108,9 @@ export class Targets {
           freeChaseCenter: new THREE.Vector3(),
           freeChaseExitDir: new THREE.Vector3(0, 0, 1),
           freeChaseExitRadius: 0,
+          freeChasePhase: 'attack',
+          freeChaseVelocity: new THREE.Vector3(),
+          freeChaseAge: 0,
         };
         this.placeEnemyAhead(enemy, 0, true);
         scene.add(enemy);
@@ -149,6 +152,9 @@ export class Targets {
     enemy.userData.launchedByBoss = false;
     enemy.userData.freeChase = false;
     enemy.userData.freeChaseExitRadius = 0;
+    enemy.userData.freeChasePhase = 'attack';
+    enemy.userData.freeChaseAge = 0;
+    enemy.userData.freeChaseVelocity.set(0, 0, 0);
     enemy.userData.retargetCooldown = 0; // force un nouveau choix de cible
     enemy.visible = true;
   }
@@ -160,9 +166,8 @@ export class Targets {
     freeChaseExitDir = null,
     freeChaseExitRadius = 0,
   } = {}) {
-    const enemy =
-      this.enemies.find((e) => e.userData.typeId === typeId && (!e.visible || !e.userData.alive)) ||
-      this.enemies.find((e) => e.userData.typeId === typeId);
+    const inactive = this.enemies.find((e) => e.userData.typeId === typeId && (!e.visible || !e.userData.alive));
+    const enemy = inactive || (freeChase ? null : this.enemies.find((e) => e.userData.typeId === typeId));
     if (!enemy) return;
 
     const u = enemy.userData;
@@ -177,9 +182,16 @@ export class Targets {
     u.freeChaseExitRadius = freeChaseExitRadius;
     if (freeChaseCenter) u.freeChaseCenter.copy(freeChaseCenter);
     if (freeChaseExitDir) u.freeChaseExitDir.copy(freeChaseExitDir).normalize();
+    u.freeChasePhase = freeChase ? 'exit' : 'attack';
+    u.freeChaseAge = 0;
+    u.freeChaseVelocity.set(0, 0, 0);
     u.fireCooldown = rand(0.45, 1.1);
     u.retargetCooldown = 0; // force un nouveau choix de cible
-    u.attackOffset.set(freeChase ? rand(-58, 58) : rand(-7, 7), freeChase ? rand(-34, 34) : rand(-4, 4));
+    if (freeChase) {
+      u.attackOffset.set((Math.random() < 0.5 ? -1 : 1) * rand(240, 360), rand(-120, 120));
+    } else {
+      u.attackOffset.set(rand(-7, 7), rand(-4, 4));
+    }
     u.drift.set(rand(-1.2, 1.2), rand(-0.8, 0.8));
   }
 
@@ -197,7 +209,7 @@ export class Targets {
       const def = u.def;
       if (!respawn && !e.visible) continue;
       u.time += dt;
-      u.halo.material.opacity = 0.58 + 0.16 * Math.sin(u.time * 3);
+      u.halo.material.opacity = u.freeChase ? 0.56 : 0.58 + 0.16 * Math.sin(u.time * 3);
       if (u.hitFlash > 0) {
         // Coup encaissé : le halo flashe pour signaler que les PV descendent
         u.hitFlash = Math.max(0, u.hitFlash - dt);
@@ -217,12 +229,15 @@ export class Targets {
       if (u.hasModel) {
         const speedMultiplier = u.launchedByBoss ? 1 + 1.35 * aggression : 0.75 + 0.25 * aggression;
         if (u.freeChase) {
-          const exitingShield = u.freeChaseExitRadius > 0 &&
-            e.position.distanceTo(u.freeChaseCenter) < u.freeChaseExitRadius;
-          if (exitingShield) {
-            _origin.set(-u.freeChaseExitDir.z, 0, u.freeChaseExitDir.x);
-            if (_origin.lengthSq() < 0.01) _origin.set(1, 0, 0);
-            _origin.normalize();
+          u.freeChaseAge += dt;
+          const distFromShieldCenter = e.position.distanceTo(u.freeChaseCenter);
+          if (u.freeChasePhase === 'exit' && distFromShieldCenter >= u.freeChaseExitRadius) {
+            u.freeChasePhase = 'attack';
+          }
+          _origin.set(-u.freeChaseExitDir.z, 0, u.freeChaseExitDir.x);
+          if (_origin.lengthSq() < 0.01) _origin.set(1, 0, 0);
+          _origin.normalize();
+          if (u.freeChasePhase === 'exit') {
             _attackTarget.copy(u.freeChaseCenter)
               .addScaledVector(u.freeChaseExitDir, u.freeChaseExitRadius + 42)
               .addScaledVector(_origin, u.attackOffset.x);
@@ -230,24 +245,26 @@ export class Targets {
             _dir.subVectors(targetPos, e.position);
             const distanceToTarget = Math.max(1, _dir.length());
             const attackDir = _dir.normalize();
+            if (distanceToTarget < 220) u.freeChasePhase = 'egress';
             _attackTarget.set(
-              targetPos.x + u.attackOffset.x + Math.sin(u.time * 1.7) * 5.0,
-              targetPos.y + u.attackOffset.y + Math.cos(u.time * 1.3) * 3.8,
-              targetPos.z + Math.sin(u.time * 1.1) * 12
+              targetPos.x + _origin.x * u.attackOffset.x + Math.sin(u.time * 1.7) * 18.0,
+              targetPos.y + u.attackOffset.y + Math.cos(u.time * 1.3) * 12.0,
+              targetPos.z + _origin.z * u.attackOffset.x + Math.sin(u.time * 1.1) * 28
             );
-            if (distanceToTarget < 110) {
-              _origin.set(-attackDir.z, 0, attackDir.x);
-              if (_origin.lengthSq() < 0.01) _origin.set(1, 0, 0);
-              _origin.normalize();
+            if (u.freeChasePhase === 'egress') {
               _attackTarget.copy(targetPos)
-                .addScaledVector(attackDir, 170)
-                .addScaledVector(_origin, u.attackOffset.x * 1.8);
+                .addScaledVector(attackDir, 420)
+                .addScaledVector(_origin, u.attackOffset.x * 1.15)
+                .addScaledVector(_aim.set(0, 1, 0), u.attackOffset.y * 0.8);
             }
           }
           _dir.subVectors(_attackTarget, e.position);
           const distance = Math.max(1, _dir.length());
-          const freeSpeed = def.approachSpeed * speedMultiplier * (exitingShield ? 8.2 : 3.2);
-          e.position.addScaledVector(_dir.normalize(), Math.min(distance, freeSpeed * dt));
+          const desiredVelocity = _dir.normalize().multiplyScalar(
+            def.approachSpeed * speedMultiplier * (u.freeChasePhase === 'exit' ? 8.2 : u.freeChasePhase === 'egress' ? 7.6 : 4.4)
+          );
+          u.freeChaseVelocity.lerp(desiredVelocity, 1 - Math.exp(-5.5 * dt));
+          e.position.addScaledVector(u.freeChaseVelocity, dt);
           e.rotation.z = THREE.MathUtils.clamp((targetPos.x - e.position.x) * -0.018, -0.65, 0.65);
           e.rotation.x = THREE.MathUtils.clamp((targetPos.y - e.position.y) * 0.018, -0.35, 0.35);
         } else {
@@ -297,7 +314,7 @@ export class Targets {
         }
       }
 
-      if (!u.alive || (!u.freeChase && e.position.z > shipPos.z + 30) || (u.freeChase && e.position.distanceToSquared(shipPos) > 950 * 950)) {
+      if (!u.alive || (!u.freeChase && e.position.z > shipPos.z + 30) || (u.freeChase && (u.freeChaseAge > 16 || e.position.distanceToSquared(shipPos) > 1200 * 1200))) {
         if (!respawn) {
           e.visible = false;
           u.alive = false;

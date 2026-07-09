@@ -212,6 +212,7 @@ export class Game {
     this._aimScreenPoint = new THREE.Vector3();
     this._fireOrigin = new THREE.Vector3();
     this._fireDir = new THREE.Vector3();
+    this._mission04GunLocal = new THREE.Vector3();
     this._camTarget = new THREE.Vector3();
     this._look = new THREE.Vector3();
 
@@ -530,9 +531,7 @@ export class Game {
       this.fireCooldown -= dt;
       if (this.input.fire && this.fireCooldown <= 0) {
         this.fireCooldown = 0.13 * this.difficulty.fireCooldownMultiplier;
-        this._fireOrigin.copy(this.ship.nextGunPosition(this._v));
-        this._fireDir.subVectors(this._aimTarget, this._fireOrigin);
-        this.lasers.fire(this._fireOrigin, this._fireDir, 440 + this.ship.forwardSpeed, 1.4, this.difficulty.playerDamageMultiplier);
+        this.firePlayerLaser();
         this.sound.playerLaser();
       }
 
@@ -1081,6 +1080,21 @@ export class Game {
       this.aimFarReticle.position.copy(this._aimTarget);
       this.aimNearReticle.position.copy(sp).lerp(this._aimTarget, nearT);
     }
+  }
+
+  firePlayerLaser() {
+    if (this.missionId === 'mission04' && this.mission04CameraShips?.length) {
+      const hero = this.mission04CameraShips[0].root;
+      const side = this.ship.gunIndex === 0 ? -1 : 1;
+      this.ship.gunIndex = 1 - this.ship.gunIndex;
+      this._mission04GunLocal.set(side * 1.45, -0.1, -2.35);
+      this._fireOrigin.copy(hero.localToWorld(this._mission04GunLocal));
+      this._fireDir.subVectors(this._aimTarget, this.camera.position).normalize();
+    } else {
+      this._fireOrigin.copy(this.ship.nextGunPosition(this._v));
+      this._fireDir.subVectors(this._aimTarget, this._fireOrigin).normalize();
+    }
+    this.lasers.fire(this._fireOrigin, this._fireDir, 440 + this.ship.forwardSpeed, 1.4, this.difficulty.playerDamageMultiplier);
   }
 
   handleCollisions() {
