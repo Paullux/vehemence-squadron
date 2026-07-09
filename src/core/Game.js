@@ -142,6 +142,7 @@ export class Game {
     this.mission04Right = new THREE.Vector3(1, 0, 0);
     this.mission04Up = new THREE.Vector3(0, 1, 0);
     this.mission04Rear = new THREE.Vector3(0, 0, 1);
+    this.mission04ScreenOffset = new THREE.Vector2(0, 0);
     this._prevShipPos = new THREE.Vector3();
 
     this.hudScore = document.getElementById('score');
@@ -204,6 +205,7 @@ export class Game {
 
     this._v = new THREE.Vector3();
     this._aimTarget = new THREE.Vector3();
+    this._aimScreenPoint = new THREE.Vector3();
     this._fireOrigin = new THREE.Vector3();
     this._fireDir = new THREE.Vector3();
     this._camTarget = new THREE.Vector3();
@@ -838,6 +840,16 @@ export class Game {
       -MISSION04_ORBIT_PITCH_LIMIT,
       MISSION04_ORBIT_PITCH_LIMIT
     );
+    this.mission04ScreenOffset.x = THREE.MathUtils.clamp(
+      this.mission04ScreenOffset.x + this.input.moveX * 0.34 * dt,
+      -0.48,
+      0.48
+    );
+    this.mission04ScreenOffset.y = THREE.MathUtils.clamp(
+      this.mission04ScreenOffset.y + this.input.moveY * 0.28 * dt,
+      -0.34,
+      0.34
+    );
     this.mission04OrbitRadius = MISSION04_ORBIT_RADIUS;
 
     const a = this.mission04OrbitAngle;
@@ -882,6 +894,11 @@ export class Game {
   updateMission04CameraSquadron(dt) {
     if (!this.mission04CameraSquadron) return;
     this.mission04CameraSquadron.visible = true;
+    this.mission04CameraSquadron.position.set(
+      this.mission04ScreenOffset.x * 8.5,
+      this.mission04ScreenOffset.y * 5.2,
+      0
+    );
     const t = performance.now() * 0.001;
     for (let i = 0; i < this.mission04CameraShips.length; i++) {
       const ship = this.mission04CameraShips[i];
@@ -1029,10 +1046,11 @@ export class Game {
     const sp = this.ship.group.position;
     let desired;
     if (this.missionId === 'mission04') {
-      desired = this._v.copy(sp)
-        .addScaledVector(this.mission04Forward, AIM_DEPTH)
-        .addScaledVector(this.mission04Right, this.input.aimX * AIM_RANGE_X)
-        .addScaledVector(this.mission04Up, this.input.aimY * AIM_RANGE_Y);
+      this._aimScreenPoint.set(this.input.aimX, this.input.aimY, 0.58).unproject(this.camera);
+      desired = this._v.subVectors(this._aimScreenPoint, this.camera.position)
+        .normalize()
+        .multiplyScalar(900)
+        .add(this.camera.position);
     } else {
       desired = this._v.set(
         sp.x + this.input.aimX * AIM_RANGE_X,
@@ -1041,9 +1059,15 @@ export class Game {
       );
     }
     this._aimTarget.lerp(desired, 1 - Math.exp(-14 * dt));
-    const nearT = AIM_NEAR_DEPTH / AIM_DEPTH;
-    this.aimFarReticle.position.copy(this._aimTarget);
-    this.aimNearReticle.position.copy(sp).lerp(this._aimTarget, nearT);
+    if (this.missionId === 'mission04') {
+      const screenDir = this._v.subVectors(this._aimTarget, this.camera.position).normalize();
+      this.aimFarReticle.position.copy(this.camera.position).addScaledVector(screenDir, 140);
+      this.aimNearReticle.position.copy(this.camera.position).addScaledVector(screenDir, 42);
+    } else {
+      const nearT = AIM_NEAR_DEPTH / AIM_DEPTH;
+      this.aimFarReticle.position.copy(this._aimTarget);
+      this.aimNearReticle.position.copy(sp).lerp(this._aimTarget, nearT);
+    }
   }
 
   handleCollisions() {

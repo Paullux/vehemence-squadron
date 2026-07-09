@@ -281,7 +281,7 @@ export class ShieldSatelliteAssault {
     for (let i = 0; i < count; i++) {
       const sideOffset = (i - (count - 1) * 0.5) * rand(28, 44) + rand(-12, 12);
       _origin.copy(this.center)
-        .addScaledVector(_dir, SHIELD_RADIUS + rand(38, 82))
+        .addScaledVector(_dir, PLANET_RADIUS + rand(34, 68))
         .addScaledVector(_side, sideOffset)
         .addScaledVector(_up, rand(-30, 30));
       targets.launchFromMothership('basic_fighter', _origin, ship.group.position.z, {

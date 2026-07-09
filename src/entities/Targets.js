@@ -251,7 +251,7 @@ export class Targets {
           _aim.set(
             targetPos.x + targetVelocity.x * t + rand(-5, 5),
             targetPos.y + targetVelocity.y * t + rand(-4, 4),
-            targetPos.z - ship.forwardSpeed * t
+            targetPos.z + (u.freeChase ? 0 : -ship.forwardSpeed * t)
           );
           _dir.subVectors(_aim, e.position);
           _origin.copy(e.position).addScaledVector(_dir.clone().normalize(), def.length * 0.5);
