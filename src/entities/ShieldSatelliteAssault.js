@@ -16,10 +16,10 @@ const PLANET_RADIUS = 190;
 const SATELLITE_HP = 6;
 const FIGHTER_WAVE_INTERVAL = 5.2;
 const PLANET_TEXTURES = {
-  albedo: '/textures/planets/desert_planete/planet_albedo.png',
-  normal: '/textures/planets/desert_planete/planet_normal.png',
-  roughness: '/textures/planets/desert_planete/planet_roughness.png',
-  emission: '/textures/planets/desert_planete/planet_emission.png',
+  albedo: '/textures/planets/red_planete/planet_albedo.png',
+  normal: '/textures/planets/red_planete/planet_normal.png',
+  roughness: '/textures/planets/red_planete/planet_roughness.png',
+  emission: '/textures/planets/red_planete/planet_emission.png',
 };
 const textureLoader = new THREE.TextureLoader();
 const _origin = new THREE.Vector3();
