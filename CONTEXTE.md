@@ -246,8 +246,14 @@ checkpoint informatif ; la reprise exacte d'un état 3D viendra avec la machine
   puis prépare l'assaut dans le propre système de l'Hégémonie.
 - **Mission 4 prévue : `MISSION 4 // Directement chez L'HEGEMONIE`**. Intention :
   bataille près d'une planète rouge, d'une grande étoile rouge et de ses anneaux.
-  Objectif pressenti : combattre la flotte ennemie et détruire les satellites qui
-  génèrent le champ de force/bouclier planétaire de l'Hégémonie.
+  C'est le niveau où le **mode libre/all-range** prend tout son sens : désactiver
+  les rails de déplacement latéral, mais conserver une avance continue / poussée
+  orbitale. Le joueur doit pouvoir contourner la planète pour atteindre tous les
+  satellites-boucliers répartis autour d'elle, au lieu de rester dans un couloir
+  frontal. Objectif pressenti : combattre la flotte ennemie et détruire les
+  satellites qui génèrent le champ de force/bouclier planétaire de l'Hégémonie.
+  Références de génération Rodin pour ces satellites :
+  `I:\jeu Space Opera Threejs - Source\pipeline-assets\space_ships\ennemies\hegemony_shield_satellite\references\`.
 - **Bouclier du héros : 100 PV** (laser ennemi -12, collision -25), régénération
   +4 PV/s après 5 s sans dégât. HUD : barre de bouclier (vert/orange/rouge), vignette
   rouge d'impact, secousse caméra. **Game over** avec score final, restart ESPACE/A.
