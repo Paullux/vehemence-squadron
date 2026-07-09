@@ -34,6 +34,7 @@ const AUDIO_SETTINGS_KEY = 'vehemence.audio';
 const MISSION_SAVE_KEY = 'vehemence.missionSave';
 const DEBRIEF_DELAY = 2500;
 const AI_DEBRIEF_DURATION = 13000;
+const VIDEO_DEBRIEF_FALLBACK_DURATION = 45000;
 const COMMANDER_BRIEF_FALLBACK_DURATION = 48000;
 const DEFAULT_AUDIO_SETTINGS = {
   master: 0.72,
@@ -1250,6 +1251,17 @@ export class Game {
       DEBRIEF_VIDEO_BY_MISSION[this.missionId] || DEBRIEF_VIDEO_BY_MISSION.mission01
     );
     this.debriefVideo.currentTime = 0;
+    if (this.debriefTimer) clearTimeout(this.debriefTimer);
+    this.debriefTimer = setTimeout(() => this.endDebrief(), VIDEO_DEBRIEF_FALLBACK_DURATION);
+    this.debriefVideo.addEventListener(
+      'loadedmetadata',
+      () => {
+        if (!Number.isFinite(this.debriefVideo.duration) || this.debriefVideo.duration <= 0) return;
+        if (this.debriefTimer) clearTimeout(this.debriefTimer);
+        this.debriefTimer = setTimeout(() => this.endDebrief(), this.debriefVideo.duration * 1000 + 1500);
+      },
+      { once: true }
+    );
     this.debriefVideo.play().catch(() => this.endDebrief());
     this.debriefVideo.addEventListener(
       'ended',
@@ -1336,7 +1348,13 @@ export class Game {
       return;
     }
     if (this.missionId === 'mission03') {
-      location.href = `${location.origin}${location.pathname}`;
+      const next = new URL(location.href);
+      next.searchParams.set('mission', 'mission04');
+      next.searchParams.set('difficulty', this.difficultyId);
+      next.searchParams.set('score', String(this.score));
+      next.searchParams.set('autostart', '1');
+      next.searchParams.delete('skipBrief');
+      location.href = next.toString();
       return;
     }
     if (this.missionId === 'mission04') {
