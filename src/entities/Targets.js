@@ -105,6 +105,9 @@ export class Targets {
           hitFlash: 0,
           target: null,
           retargetCooldown: 0,
+          freeChaseCenter: new THREE.Vector3(),
+          freeChaseExitDir: new THREE.Vector3(0, 0, 1),
+          freeChaseExitRadius: 0,
         };
         this.placeEnemyAhead(enemy, 0, true);
         scene.add(enemy);
@@ -145,11 +148,18 @@ export class Targets {
     enemy.userData.hp = def.hp;
     enemy.userData.launchedByBoss = false;
     enemy.userData.freeChase = false;
+    enemy.userData.freeChaseExitRadius = 0;
     enemy.userData.retargetCooldown = 0; // force un nouveau choix de cible
     enemy.visible = true;
   }
 
-  launchFromMothership(typeId, origin, shipZ, { clampAhead = true, freeChase = false } = {}) {
+  launchFromMothership(typeId, origin, shipZ, {
+    clampAhead = true,
+    freeChase = false,
+    freeChaseCenter = null,
+    freeChaseExitDir = null,
+    freeChaseExitRadius = 0,
+  } = {}) {
     const enemy =
       this.enemies.find((e) => e.userData.typeId === typeId && (!e.visible || !e.userData.alive)) ||
       this.enemies.find((e) => e.userData.typeId === typeId);
@@ -164,9 +174,12 @@ export class Targets {
     u.hp = def.hp;
     u.launchedByBoss = true;
     u.freeChase = freeChase;
+    u.freeChaseExitRadius = freeChaseExitRadius;
+    if (freeChaseCenter) u.freeChaseCenter.copy(freeChaseCenter);
+    if (freeChaseExitDir) u.freeChaseExitDir.copy(freeChaseExitDir).normalize();
     u.fireCooldown = rand(0.45, 1.1);
     u.retargetCooldown = 0; // force un nouveau choix de cible
-    u.attackOffset.set(rand(-7, 7), rand(-4, 4));
+    u.attackOffset.set(freeChase ? rand(-58, 58) : rand(-7, 7), freeChase ? rand(-34, 34) : rand(-4, 4));
     u.drift.set(rand(-1.2, 1.2), rand(-0.8, 0.8));
   }
 
@@ -204,25 +217,37 @@ export class Targets {
       if (u.hasModel) {
         const speedMultiplier = u.launchedByBoss ? 1 + 1.35 * aggression : 0.75 + 0.25 * aggression;
         if (u.freeChase) {
-          _dir.subVectors(targetPos, e.position);
-          const distanceToTarget = Math.max(1, _dir.length());
-          const attackDir = _dir.normalize();
-          _attackTarget.set(
-            targetPos.x + u.attackOffset.x + Math.sin(u.time * 1.7) * 5.0,
-            targetPos.y + u.attackOffset.y + Math.cos(u.time * 1.3) * 3.8,
-            targetPos.z + Math.sin(u.time * 1.1) * 12
-          );
-          if (distanceToTarget < 110) {
-            _origin.set(-attackDir.z, 0, attackDir.x);
+          const exitingShield = u.freeChaseExitRadius > 0 &&
+            e.position.distanceTo(u.freeChaseCenter) < u.freeChaseExitRadius;
+          if (exitingShield) {
+            _origin.set(-u.freeChaseExitDir.z, 0, u.freeChaseExitDir.x);
             if (_origin.lengthSq() < 0.01) _origin.set(1, 0, 0);
             _origin.normalize();
-            _attackTarget.copy(targetPos)
-              .addScaledVector(attackDir, 170)
-              .addScaledVector(_origin, u.attackOffset.x * 1.8);
+            _attackTarget.copy(u.freeChaseCenter)
+              .addScaledVector(u.freeChaseExitDir, u.freeChaseExitRadius + 42)
+              .addScaledVector(_origin, u.attackOffset.x);
+          } else {
+            _dir.subVectors(targetPos, e.position);
+            const distanceToTarget = Math.max(1, _dir.length());
+            const attackDir = _dir.normalize();
+            _attackTarget.set(
+              targetPos.x + u.attackOffset.x + Math.sin(u.time * 1.7) * 5.0,
+              targetPos.y + u.attackOffset.y + Math.cos(u.time * 1.3) * 3.8,
+              targetPos.z + Math.sin(u.time * 1.1) * 12
+            );
+            if (distanceToTarget < 110) {
+              _origin.set(-attackDir.z, 0, attackDir.x);
+              if (_origin.lengthSq() < 0.01) _origin.set(1, 0, 0);
+              _origin.normalize();
+              _attackTarget.copy(targetPos)
+                .addScaledVector(attackDir, 170)
+                .addScaledVector(_origin, u.attackOffset.x * 1.8);
+            }
           }
           _dir.subVectors(_attackTarget, e.position);
           const distance = Math.max(1, _dir.length());
-          e.position.addScaledVector(_dir.normalize(), Math.min(distance, def.approachSpeed * speedMultiplier * 3.2 * dt));
+          const freeSpeed = def.approachSpeed * speedMultiplier * (exitingShield ? 8.2 : 3.2);
+          e.position.addScaledVector(_dir.normalize(), Math.min(distance, freeSpeed * dt));
           e.rotation.z = THREE.MathUtils.clamp((targetPos.x - e.position.x) * -0.018, -0.65, 0.65);
           e.rotation.x = THREE.MathUtils.clamp((targetPos.y - e.position.y) * 0.018, -0.35, 0.35);
         } else {

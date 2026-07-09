@@ -287,6 +287,9 @@ export class ShieldSatelliteAssault {
       targets.launchFromMothership('basic_fighter', _origin, ship.group.position.z, {
         clampAhead: false,
         freeChase: true,
+        freeChaseCenter: this.center,
+        freeChaseExitDir: _dir,
+        freeChaseExitRadius: SHIELD_RADIUS + 170,
       });
     }
   }
