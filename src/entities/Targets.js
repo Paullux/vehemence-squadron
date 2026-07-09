@@ -204,14 +204,25 @@ export class Targets {
       if (u.hasModel) {
         const speedMultiplier = u.launchedByBoss ? 1 + 1.35 * aggression : 0.75 + 0.25 * aggression;
         if (u.freeChase) {
+          _dir.subVectors(targetPos, e.position);
+          const distanceToTarget = Math.max(1, _dir.length());
+          const attackDir = _dir.normalize();
           _attackTarget.set(
             targetPos.x + u.attackOffset.x + Math.sin(u.time * 1.7) * 5.0,
             targetPos.y + u.attackOffset.y + Math.cos(u.time * 1.3) * 3.8,
             targetPos.z + Math.sin(u.time * 1.1) * 12
           );
+          if (distanceToTarget < 110) {
+            _origin.set(-attackDir.z, 0, attackDir.x);
+            if (_origin.lengthSq() < 0.01) _origin.set(1, 0, 0);
+            _origin.normalize();
+            _attackTarget.copy(targetPos)
+              .addScaledVector(attackDir, 170)
+              .addScaledVector(_origin, u.attackOffset.x * 1.8);
+          }
           _dir.subVectors(_attackTarget, e.position);
           const distance = Math.max(1, _dir.length());
-          e.position.addScaledVector(_dir.normalize(), Math.min(distance, def.approachSpeed * speedMultiplier * 2.5 * dt));
+          e.position.addScaledVector(_dir.normalize(), Math.min(distance, def.approachSpeed * speedMultiplier * 3.2 * dt));
           e.rotation.z = THREE.MathUtils.clamp((targetPos.x - e.position.x) * -0.018, -0.65, 0.65);
           e.rotation.x = THREE.MathUtils.clamp((targetPos.y - e.position.y) * 0.018, -0.35, 0.35);
         } else {

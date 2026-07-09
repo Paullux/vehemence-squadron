@@ -143,6 +143,9 @@ export class Game {
     this.mission04Up = new THREE.Vector3(0, 1, 0);
     this.mission04Rear = new THREE.Vector3(0, 0, 1);
     this.mission04ScreenOffset = new THREE.Vector2(0, 0);
+    this.mission04SteeringActive = false;
+    this.mission04HasFlightPose = false;
+    this.mission04HasCameraPose = false;
     this._prevShipPos = new THREE.Vector3();
 
     this.hudScore = document.getElementById('score');
@@ -825,6 +828,10 @@ export class Game {
     this.mission04OrbitAngle = -1.45;
     this.mission04OrbitPitch = 0.08;
     this.mission04OrbitRadius = MISSION04_ORBIT_RADIUS;
+    this.mission04ScreenOffset.set(0, 0);
+    this.mission04SteeringActive = false;
+    this.mission04HasFlightPose = false;
+    this.mission04HasCameraPose = false;
     this.sound.playMusic('generalBoss', { volume: 0.52, fade: 1.2 });
   }
 
@@ -834,6 +841,8 @@ export class Game {
 
     const boost = this.input.boost ? 1 : 0;
     const orbitSpeed = (boost ? 1.18 : 0.78);
+    const steeringActive = Math.abs(this.input.moveX) + Math.abs(this.input.moveY) > 0.01;
+    this.mission04SteeringActive = steeringActive;
     this.mission04OrbitAngle += this.input.moveX * orbitSpeed * dt;
     this.mission04OrbitPitch = THREE.MathUtils.clamp(
       this.mission04OrbitPitch + this.input.moveY * orbitSpeed * 0.82 * dt,
@@ -866,14 +875,17 @@ export class Game {
     this.ship.group.position
       .copy(center)
       .addScaledVector(radial, this.mission04OrbitRadius);
-    this.mission04Forward.copy(radial).multiplyScalar(-1)
-      .addScaledVector(tangent, this.input.moveX * 0.16)
-      .addScaledVector(vertical, this.input.moveY * 0.12)
-      .normalize();
-    this.mission04Right.copy(tangent);
-    this.mission04Up.crossVectors(this.mission04Right, this.mission04Forward).normalize();
+    if (steeringActive || !this.mission04HasFlightPose) {
+      this.mission04Forward.copy(radial).multiplyScalar(-1)
+        .addScaledVector(tangent, this.input.moveX * 0.22)
+        .addScaledVector(vertical, this.input.moveY * 0.18)
+        .normalize();
+      this.mission04Right.copy(tangent);
+      this.mission04Up.crossVectors(this.mission04Right, this.mission04Forward).normalize();
+      this.mission04Rear.copy(this.mission04Forward).negate();
+      this.mission04HasFlightPose = true;
+    }
     this.ship.group.lookAt(this.ship.group.position.clone().add(this.mission04Forward));
-    this.mission04Rear.copy(this.mission04Forward).negate();
     this.ship.mesh.rotation.z = -this.input.moveX * 0.82;
     this.ship.mesh.rotation.x = this.input.moveY * 0.38;
     this.ship.forwardSpeed = 62 + boost * 95 + Math.abs(this.input.moveX) * 50 + Math.abs(this.input.moveY) * 42;
@@ -1107,6 +1119,7 @@ export class Game {
 
       if (u.alive) {
         for (const actor of actors) {
+          if (this.missionId === 'mission04' && u.freeChase) continue;
           if (enemy.position.distanceToSquared(actor.position) < (rLat + 2) ** 2) {
             this.destroyEnemy(enemy, 0);
             actor.damage(def.ramDamage * this.difficulty.receivedDamageMultiplier);
@@ -1415,10 +1428,16 @@ export class Game {
   updateMission04Camera(dt) {
     const sp = this.ship.group.position;
     const k = 1 - Math.exp(-5.5 * dt);
+    const needsInitialPose = !this.mission04HasCameraPose;
     this._camTarget.copy(sp)
       .addScaledVector(this.mission04Rear, 30 + this.ship.boostAmount * 8)
       .addScaledVector(this.mission04Up, 6.5);
-    this.camera.position.lerp(this._camTarget, k);
+    if (needsInitialPose) {
+      this.camera.position.copy(this._camTarget);
+      this.mission04HasCameraPose = true;
+    } else if (this.mission04SteeringActive) {
+      this.camera.position.lerp(this._camTarget, k);
+    }
 
     if (this.shake > 0) {
       this.shake = Math.max(0, this.shake - dt * 1.6);
@@ -1429,7 +1448,9 @@ export class Game {
     this._look.copy(sp)
       .addScaledVector(this.mission04Forward, 42)
       .addScaledVector(this.mission04Up, 2);
-    this.camera.lookAt(this._look);
+    if (this.mission04SteeringActive || needsInitialPose) {
+      this.camera.lookAt(this._look);
+    }
     const targetFov = BASE_FOV + this.ship.boostAmount * 10;
     if (Math.abs(targetFov - this.camera.fov) > 0.01) {
       this.camera.fov += (targetFov - this.camera.fov) * k;
