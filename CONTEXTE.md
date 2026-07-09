@@ -246,16 +246,16 @@ checkpoint informatif ; la reprise exacte d'un état 3D viendra avec la machine
   puis prépare l'assaut dans le propre système de l'Hégémonie.
 - **Mission 4 : `MISSION 4 // Directement chez L'HEGEMONIE`**. V1 jouable :
   bataille près d'une planète rouge, d'une grande étoile rouge et de ses anneaux.
-  C'est le niveau où le **mode libre/all-range** prend tout son sens : désactiver
-  les rails de déplacement latéral, mais conserver une avance continue / poussée
-  orbitale. Le joueur doit pouvoir contourner la planète pour atteindre tous les
-  satellites-boucliers répartis autour d'elle, au lieu de rester dans un couloir
-  frontal. La première version implémente une orbite assistée : le vaisseau avance
-  continuellement autour de la planète, `gauche/droite` accélère ou ralentit le
-  contournement, `haut/bas` change l'altitude, le boost resserre l'approche et
-  augmente la vitesse. Pour garder ce premier mode libre lisible, l'Hégémonie
-  n'envoie que des chasseurs dans cette mission. Objectif : détruire les satellites
-  qui génèrent le champ de force/bouclier planétaire de l'Hégémonie.
+  C'est le niveau où le **mode libre/all-range** prend tout son sens : les rails et
+  le recentrage automatique sont désactivés. Le joueur peut contourner librement la
+  planète pour atteindre tous les satellites-boucliers répartis autour d'elle :
+  `gauche/droite` change la longitude, `haut/bas` change la latitude, et relâcher
+  les commandes fige la position et la caméra dans la vue atteinte. Pour garder ce
+  premier mode libre lisible, l'Hégémonie n'envoie que des chasseurs dans cette
+  mission. Ils naissent sous le bouclier côté planète, ont une phase forcée de sortie
+  au-dessus du champ, puis passent en attaque sans collision-suicide avec Aquila.
+  Objectif : détruire les satellites qui génèrent le champ de force/bouclier
+  planétaire de l'Hégémonie.
   Modèle runtime des satellites :
   `public/space_ships/ennemies/shield_satellites/base_basic_pbr.glb` avec
   `texture_emissive.png`. Références de génération Rodin conservées côté source :
@@ -263,6 +263,13 @@ checkpoint informatif ; la reprise exacte d'un état 3D viendra avec la machine
   Le bouclier est rendu comme une sphère rouge transparente à quadrillage émissif
   autour de la planète ; chaque satellite détruit casse un secteur du shader, et
   la jauge de boss indique les satellites restants.
+- **Cinématique de fin du niveau 4** :
+  `public/cinematics/fourth_mission_end/aquila_dive_to_red_planet_seedance.mp4`,
+  générée via Replicate / `bytedance/seedance-1.5-pro` depuis l'image clé
+  `aquila_dive_to_red_planet_keyframe.png`. Elle montre l'escadron Aquila plongeant
+  directement vers la planète rouge après l'ouverture du bouclier. Les prompts et
+  sources sont conservés côté source dans
+  `I:\jeu Space Opera Threejs - Source\pipeline-assets\cinematics\fourth_mission_end\`.
 - **Bouclier du héros : 100 PV** (laser ennemi -12, collision -25), régénération
   +4 PV/s après 5 s sans dégât. HUD : barre de bouclier (vert/orange/rouge), vignette
   rouge d'impact, secousse caméra. **Game over** avec score final, restart ESPACE/A.

@@ -45,6 +45,7 @@ const DEBRIEF_VIDEO_BY_MISSION = {
   mission01: '/cinematics/first_mission_end/debrief_end_first_mission.mp4',
   mission02: '/cinematics/second_mission_end/red_corona_escape_seedance.mp4',
   mission03: '/cinematics/third_mission_end/end_mission_3_debrief.mp4',
+  mission04: '/cinematics/fourth_mission_end/aquila_dive_to_red_planet_seedance.mp4',
 };
 const MISSION02_COMMANDER_BRIEF =
   "Pilotes de l'escadron Aquila.\n\n" +
