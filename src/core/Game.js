@@ -8,6 +8,8 @@ import { MothershipBoss } from '../entities/MothershipBoss.js';
 import { AsteroidField } from '../entities/AsteroidField.js';
 import { VehemenceDefense } from '../entities/VehemenceDefense.js';
 import { ShieldSatelliteAssault } from '../entities/ShieldSatelliteAssault.js';
+import { HegemonyCanyonRun } from '../entities/HegemonyCanyonRun.js';
+import { GroundAssaultMission, GROUND_ASSAULT_FLOOR_Y } from '../entities/GroundAssaultMission.js';
 import { ExplosionPool } from '../entities/Explosions.js';
 import { Starfield } from '../world/Starfield.js';
 import { Environment } from '../world/Environment.js';
@@ -40,8 +42,19 @@ const MISSION04_MAX_REVERSE_SPEED = -62;
 const MISSION04_BOOST_BONUS_SPEED = 105;
 const MISSION04_ROLL_TURN_SPEED = 0.9; // Q/D changent le cap, le roulis visuel revient a plat
 const MISSION04_STRAFE_SPEED = 0.62; // rad/s de déplacement tangentiel (Q/D)
+const MISSION06_WALK_SPEED = 28;
+const MISSION06_RUN_SPEED = 48;
+const MISSION06_BACKWARD_SPEED = 18;
+const MISSION06_STRAFE_SPEED = 26;
+const MISSION06_PLAYER_Y = GROUND_ASSAULT_FLOOR_Y + 3.2;
+const MISSION06_MOUSE_LOOK_SENSITIVITY = 0.0022; // radians par pixel
+const MISSION06_PITCH_LIMIT = 1.0; // au sol, pas de tangage complet façon vaisseau
+const MISSION06_CAMERA_DISTANCE = 24;
+const MISSION06_CAMERA_HEIGHT = 9.5;
+const MISSION06_LOOK_DISTANCE = 60;
 const AUDIO_SETTINGS_KEY = 'vehemence.audio';
 const MISSION_SAVE_KEY = 'vehemence.missionSave';
+const HIGH_SCORES_KEY = 'vehemence.highScores';
 const DEBRIEF_DELAY = 2500;
 const AI_DEBRIEF_DURATION = 13000;
 const VIDEO_DEBRIEF_FALLBACK_DURATION = 45000;
@@ -52,11 +65,64 @@ const DEFAULT_AUDIO_SETTINGS = {
   sfx: 0.85,
   voice: 2.2,
 };
+const DEFAULT_HIGH_SCORES = {
+  pilot: {
+    mission01: { name: 'RENARD', score: 580 },
+    mission02: { name: 'ORION', score: 520 },
+    mission03: { name: 'COBRA', score: 470 },
+    mission04: { name: 'NOVA', score: 410 },
+    mission05: { name: 'LYNX', score: 350 },
+    mission06: { name: 'CORBEAU', score: 290 },
+  },
+  cadet: {
+    mission01: { name: 'ASTER', score: 420 },
+    mission02: { name: 'VEGA', score: 360 },
+    mission03: { name: 'SIRIUS', score: 310 },
+    mission04: { name: 'MIRAGE', score: 260 },
+    mission05: { name: 'ATLAS', score: 190 },
+    mission06: { name: 'ECHO', score: 120 },
+  },
+};
 const DEBRIEF_VIDEO_BY_MISSION = {
   mission01: '/cinematics/first_mission_end/debrief_end_first_mission.mp4',
   mission02: '/cinematics/second_mission_end/red_corona_escape_seedance.mp4',
   mission03: '/cinematics/third_mission_end/end_mission_3_debrief.mp4',
   mission04: '/cinematics/fourth_mission_end/aquila_dive_to_red_planet_seedance.mp4',
+  mission05: '/cinematics/fifth_mission_end/mission5_end_seedance_aquila_vehemence_landing.mp4',
+  mission06: [
+    '/cinematics/mission6_end/mission6_end_prisoner_transfer_v2.mp4',
+    '/cinematics/mission6_end/mission6_end_planet_bombardment.mp4',
+    '/cinematics/mission6_end/mission6_end_confederation_victory_celebration.mp4',
+    '/cinematics/mission6_end/mission6_end_hero_prisoner_dialogue_teaser_2.mp4',
+  ],
+};
+const DEBRIEF_AUDIO_BY_VIDEO = {
+  '/cinematics/fourth_mission_end/aquila_dive_to_red_planet_seedance.mp4': {
+    engine: true,
+    sfx: [
+      { name: 'explosionBig', delay: 1200, volume: 0.42 },
+      { name: 'explosionMedium', delay: 3000, volume: 0.34 },
+      { name: 'explosionBig', delay: 5600, volume: 0.38 },
+    ],
+  },
+  '/cinematics/mission6_end/mission6_end_prisoner_transfer_v2.mp4': {
+    music: 'mission6PrisonerTransfer',
+    volume: 0.58,
+    sfx: [{ name: 'mission6ArmyMarch', delay: 0, volume: 0.48 }],
+  },
+  '/cinematics/mission6_end/mission6_end_planet_bombardment.mp4': {
+    music: 'mission6PlanetBombardment',
+    volume: 0.62,
+    sfx: [
+      { name: 'mission6OrbitalBombardment', delay: 0, volume: 0.66 },
+      { name: 'mission6CityExplosions', delay: 850, volume: 0.5 },
+    ],
+  },
+  '/cinematics/mission6_end/mission6_end_confederation_victory_celebration.mp4': {
+    music: 'mission6VictoryCelebration',
+    volume: 0.58,
+    sfx: [{ name: 'mission6ArmyMarch', delay: 0, volume: 0.28 }],
+  },
 };
 const MISSION02_COMMANDER_BRIEF =
   "Pilotes de l'escadron Aquila.\n\n" +
@@ -77,6 +143,8 @@ const getMissionSystemId = (missionId) => {
   if (missionId === 'mission02') return 'kharos_red_corona';
   if (missionId === 'mission03') return 'ocean_front';
   if (missionId === 'mission04') return 'hegemony_red_orbit';
+  if (missionId === 'mission05') return 'hegemony_red_orbit';
+  if (missionId === 'mission06') return 'hegemony_red_orbit';
   return 'kharos_binary';
 };
 
@@ -90,8 +158,9 @@ export class Game {
 
     this.scene = new THREE.Scene();
     this.scene.background = new THREE.Color(0x02030a);
+    this.defaultSceneFog = null;
 
-    this.camera = new THREE.PerspectiveCamera(BASE_FOV, innerWidth / innerHeight, 0.1, 4000);
+    this.camera = new THREE.PerspectiveCamera(BASE_FOV, innerWidth / innerHeight, 0.1, 7500);
     this.camera.position.set(0, 3.5, 15);
     this.scene.add(this.camera);
 
@@ -116,12 +185,14 @@ export class Game {
     this.lasers = new LaserPool(this.scene);
     this.enemyLasers = new LaserPool(this.scene, { size: 32, color: 0xff3344, radius: 0.14 });
     this.enemyHeavyLasers = new LaserPool(this.scene, { size: 16, color: 0xff7733, radius: 0.28, length: 6.5 });
-    this.alliedLasers = new LaserPool(this.scene, { size: 72, color: 0x55ddff, radius: 0.06, length: 7 });
+    this.alliedLasers = new LaserPool(this.scene, { size: 160, color: 0x55ddff, radius: 0.06, length: 7 });
     this.targets = new Targets(this.scene);
     this.boss = new MothershipBoss(this.scene);
     this.asteroidField = new AsteroidField(this.scene);
     this.vehemenceDefense = new VehemenceDefense(this.scene);
     this.shieldSatelliteAssault = new ShieldSatelliteAssault(this.scene);
+    this.hegemonyCanyonRun = new HegemonyCanyonRun(this.scene);
+    this.groundAssaultMission = new GroundAssaultMission(this.scene);
     this.explosions = new ExplosionPool(this.scene);
     this.starfield = new Starfield(this.scene);
     // Système stellaire de la mission — voir SYSTEMS dans celestial-catalog.js
@@ -160,6 +231,11 @@ export class Game {
     this.mission04SteeringActive = false;
     this.mission04HasFlightPose = false;
     this.mission04HasCameraPose = false;
+    // yaw=0 fait face à -Z (convention de ce fichier : atan2(strafe, forward)
+    // vaut 0 quand on avance tout droit) ; la souris pilote la caméra ET le
+    // cap du personnage (vraie troisième personne, pas un simple wobble).
+    this.mission06Yaw = 0;
+    this.mission06Pitch = 0.1;
     this._prevShipPos = new THREE.Vector3();
 
     this.hudScore = document.getElementById('score');
@@ -169,6 +245,10 @@ export class Game {
       this.hudHint.textContent =
         'Souris : cap du vaisseau — Z avancer / S reculer — Q/D rouler + latéral — ' +
         'clic gauche / RT / A : tirer — clic droit / MAJ / LT / LB : boost — ESPACE : pause';
+    } else if (this.hudHint && this.missionId === 'mission06') {
+      this.hudHint.textContent =
+        'ZQSD / WASD : deplacement au sol — souris : viser — clic gauche / RT / A : tirer — ' +
+        'clic droit / MAJ / LT / LB : courir — ESPACE : pause';
     }
     this.hudDifficulty = document.getElementById('difficulty-label');
     this.hudSpeed = document.getElementById('speed');
@@ -211,6 +291,10 @@ export class Game {
     this.debriefSkip = document.getElementById('debrief-skip');
     this.debriefDone = false;
     this.debriefTimer = null;
+    this.debriefVideoQueue = [];
+    this.debriefVideoIndex = 0;
+    this.debriefAudioTimers = [];
+    this.debriefEngineAudioActive = false;
     this.commanderBriefSource = null;
     this.hudRoot = document.getElementById('hud');
     this.launchOverlay = document.getElementById('launch-sequence');
@@ -228,6 +312,7 @@ export class Game {
     if (this.hudDifficulty) this.hudDifficulty.textContent = `MODE ${this.difficulty.label}`;
 
     this._v = new THREE.Vector3();
+    this._v2 = new THREE.Vector3();
     this._aimTarget = new THREE.Vector3();
     this._aimScreenPoint = new THREE.Vector3();
     this._fireOrigin = new THREE.Vector3();
@@ -242,6 +327,8 @@ export class Game {
       this.renderer.setSize(innerWidth, innerHeight);
       this.updateLaunchHangarPlane();
     });
+
+    if (this.missionId === 'mission05' || this.missionId === 'mission06') this.skipLaunchForAtmosphericEntry();
   }
 
   buildReticles() {
@@ -272,7 +359,7 @@ export class Game {
   }
 
   buildMissionLighting() {
-    if (this.missionId === 'mission04') {
+    if (this.missionId === 'mission04' || this.missionId === 'mission05' || this.missionId === 'mission06') {
       // Pas ajoutés à la scène tout de suite : cet éclairage rouge très
       // marqué (thème Hégémonie) n'a rien à faire pendant le décollage
       // depuis le Véhémence, encore dans un espace neutre. Activé dans
@@ -283,6 +370,11 @@ export class Game {
       const shieldGlow = new THREE.PointLight(0xff1a08, 160, 620, 1.45);
       shieldGlow.position.set(0, -20, -430);
       this.mission04Lights = [redFill, hegemonyKey, shieldGlow];
+      if (this.missionId === 'mission05' || this.missionId === 'mission06') {
+        const canyonFill = new THREE.DirectionalLight(0xff9a54, 1.05);
+        canyonFill.position.set(-0.3, 0.65, 0.35).normalize();
+        this.mission04Lights.push(canyonFill);
+      }
 
       return;
     }
@@ -547,8 +639,15 @@ export class Game {
       if (this.missionId === 'mission04' && !this.shieldSatelliteAssault.active && !this.shieldSatelliteAssault.complete) {
         this.startShieldSatelliteAssault();
       }
+      if (this.missionId === 'mission05' && !this.hegemonyCanyonRun.active && !this.hegemonyCanyonRun.complete) {
+        this.startHegemonyCanyonRun();
+      }
+      if (this.missionId === 'mission06' && !this.groundAssaultMission.active && !this.groundAssaultMission.complete) {
+        this.startGroundAssaultMission();
+      }
 
       if (this.missionId === 'mission04') this.updateMission04Flight(dt);
+      else if (this.missionId === 'mission06') this.updateMission06Player(dt);
       else this.ship.update(dt, this.input);
       this.updateAimTarget(dt);
 
@@ -666,6 +765,38 @@ export class Game {
         { enemyAggressionMultiplier: this.difficulty.enemyAggressionMultiplier }
       );
       if (this.shieldSatelliteAssault.complete) this.completeMission();
+    }
+    if (this.missionId === 'mission05' && !this.missionComplete) {
+      this.score += this.targets.update(
+        dt,
+        this.ship,
+        this.wingmen,
+        { light: this.enemyLasers, heavy: this.enemyHeavyLasers },
+        !this.gameOver,
+        this.sound,
+        { respawn: false, rings: false, enemyAggressionMultiplier: this.difficulty.enemyAggressionMultiplier }
+      );
+      this.score += this.hegemonyCanyonRun.update(
+        dt,
+        this.ship,
+        this.targets,
+        this.sound,
+        this.explosions,
+        { enemyAggressionMultiplier: this.difficulty.enemyAggressionMultiplier }
+      );
+      this.hegemonyCanyonRun.syncSky(this.camera, dt);
+      if (this.hegemonyCanyonRun.complete) this.completeMission();
+    }
+    if (this.missionId === 'mission06' && !this.missionComplete) {
+      this.score += this.groundAssaultMission.update(
+        dt,
+        this.ship,
+        { heavy: this.enemyHeavyLasers, allied: this.alliedLasers },
+        this.sound,
+        { enemyAggressionMultiplier: this.difficulty.enemyAggressionMultiplier, explosions: this.explosions }
+      );
+      this.groundAssaultMission.syncSky(this.camera, dt);
+      if (this.groundAssaultMission.complete) this.completeMission();
     }
     if (this.missionId === 'mission01' && this.bossStarted && !this.missionComplete) {
       const launchOrigin = this.boss.consumeFighterLaunch();
@@ -863,6 +994,75 @@ export class Game {
     this.mission04HasFlightPose = false;
     this.mission04HasCameraPose = false;
     this.sound.playMusic('generalBoss', { volume: 0.52, fade: 1.2 });
+  }
+
+  startHegemonyCanyonRun() {
+    this.bossStarted = true;
+    this.setCombatVisible(false);
+    this.setEnvironmentVisible(false);
+    if (this.starfield?.points) this.starfield.points.visible = false;
+    this.scene.fog = new THREE.FogExp2(0xd67b32, 0.00072);
+    this.hudBoss.classList.remove('hidden');
+    this.hegemonyCanyonRun.start(this.ship.group.position.z);
+    this.sound.playMusic('generalBoss', { volume: 0.54, fade: 1.2 });
+  }
+
+  startGroundAssaultMission() {
+    this.bossStarted = true;
+    this.setCombatVisible(false);
+    this.setEnvironmentVisible(false);
+    if (this.starfield?.points) this.starfield.points.visible = false;
+    this.scene.fog = new THREE.FogExp2(0xd67b32, 0.00082);
+    this.ship.group.visible = false;
+    for (const wingman of this.wingmen) wingman.group.visible = false;
+    this.hudBoss.classList.remove('hidden');
+    this.ship.group.position.set(0, MISSION06_PLAYER_Y, this.ship.group.position.z);
+    this.ship.forwardSpeed = 0;
+    this.groundAssaultMission.start(this.ship.group.position.z);
+    this.sound.playMusic('generalBoss', { volume: 0.5, fade: 1.2 });
+  }
+
+  // Vraie troisième personne : la souris tourne la caméra ET le personnage
+  // (ils partagent le même cap, comme dans un TPS classique) ; Z/Q/S/D
+  // déplacent le personnage RELATIVEMENT à ce cap, pas aux axes du monde --
+  // avant l'ancienne version bougeait toujours vers -Z même après un
+  // demi-tour visuel, ce qui cassait complètement la sensation 3e personne.
+  updateMission06Player(dt) {
+    const { x: mouseDX, y: mouseDY } = this.input.consumeMouseDelta();
+    this.mission06Yaw -= mouseDX * MISSION06_MOUSE_LOOK_SENSITIVITY;
+    this.mission06Pitch = THREE.MathUtils.clamp(
+      this.mission06Pitch - mouseDY * MISSION06_MOUSE_LOOK_SENSITIVITY,
+      -MISSION06_PITCH_LIMIT,
+      MISSION06_PITCH_LIMIT
+    );
+
+    const arrowThrottle =
+      (this.input.isDown('ArrowUp') ? 1 : 0) -
+      (this.input.isDown('ArrowDown') ? 1 : 0);
+    const forwardInput = THREE.MathUtils.clamp(this.input.throttle + arrowThrottle, -1, 1);
+    const lateralInput =
+      (this.input.isDown('KeyD', 'ArrowRight') ? 1 : 0) -
+      (this.input.isDown('KeyQ', 'KeyA', 'ArrowLeft') ? 1 : 0);
+    const runMultiplier = this.input.boost ? MISSION06_RUN_SPEED : MISSION06_WALK_SPEED;
+    const forwardSpeed =
+      Math.max(0, forwardInput) * runMultiplier +
+      Math.min(0, forwardInput) * MISSION06_BACKWARD_SPEED;
+    const strafeSpeed = lateralInput * (this.input.boost ? MISSION06_STRAFE_SPEED * 1.25 : MISSION06_STRAFE_SPEED);
+
+    // yaw=0 -> avant = -Z (même convention que l'ancien code : atan2(0, +) = 0).
+    const yaw = this.mission06Yaw;
+    const forwardDir = this._v.set(-Math.sin(yaw), 0, -Math.cos(yaw));
+    const rightDir = this._v2.set(Math.cos(yaw), 0, -Math.sin(yaw));
+    this.ship.group.position
+      .addScaledVector(forwardDir, forwardSpeed * dt)
+      .addScaledVector(rightDir, strafeSpeed * dt);
+    this.ship.group.position.x = THREE.MathUtils.clamp(this.ship.group.position.x, -170, 170);
+    this.ship.group.position.y = MISSION06_PLAYER_Y;
+
+    this.ship.forwardSpeed = forwardSpeed;
+    this.ship.group.rotation.y = yaw;
+    this.ship.mesh.rotation.z = 0;
+    this.ship.boostAmount = this.input.boost && forwardInput > 0.1 ? 0.45 : 0;
   }
 
   // Pilotage libre mission 4 : la souris vise/pilote (comme un manche —
@@ -1116,6 +1316,20 @@ export class Game {
     this.requestCombatPointerLock();
   }
 
+  skipLaunchForAtmosphericEntry() {
+    this.finishLaunch();
+    this.launchTime = this.launchDuration;
+    this.ship.group.position.set(0, 0, 0);
+    this.ship.forwardSpeed = 92;
+    this.ship.boostAmount = 0;
+    this.camera.position.set(0, 22, 34);
+    this.camera.lookAt(0, -31, -108);
+    this.camera.fov = BASE_FOV + 2;
+    this.camera.updateProjectionMatrix();
+    this.setEnvironmentVisible(false);
+    if (this.starfield?.points) this.starfield.points.visible = false;
+  }
+
   requestCombatPointerLock() {
     if (!document.hasFocus?.()) return;
     if (this.input.pointerLocked || document.pointerLockElement) return;
@@ -1149,9 +1363,10 @@ export class Game {
 
   updateAimTarget(dt) {
     const sp = this.ship.group.position;
+    const cameraForward = this.missionId === 'mission04' || this.missionId === 'mission06';
     let desired;
-    if (this.missionId === 'mission04') {
-      // La souris pilote maintenant le cap du vaisseau (updateMission04Flight) :
+    if (cameraForward) {
+      // La souris pilote la caméra (et, en mission 6, le personnage) :
       // le réticule reste fixe au centre de l'écran, plein axe caméra.
       this._aimScreenPoint.set(0, 0, 0.58).unproject(this.camera);
       desired = this._v.subVectors(this._aimScreenPoint, this.camera.position)
@@ -1165,7 +1380,7 @@ export class Game {
         sp.z - AIM_DEPTH
       );
     }
-    if (this.missionId === 'mission04') {
+    if (cameraForward) {
       // Pas de lissage ici : `desired` recalcule "plein axe caméra" à chaque
       // frame, et la caméra elle-même tourne en continu (souris). Lisser
       // par-dessus ne faisait que donner un réticule qui traîne/décale par
@@ -1174,7 +1389,7 @@ export class Game {
     } else {
       this._aimTarget.lerp(desired, 1 - Math.exp(-14 * dt));
     }
-    if (this.missionId === 'mission04') {
+    if (cameraForward) {
       const screenDir = this._v.subVectors(this._aimTarget, this.camera.position).normalize();
       this.aimFarReticle.position.copy(this.camera.position).addScaledVector(screenDir, 140);
       this.aimNearReticle.position.copy(this.camera.position).addScaledVector(screenDir, 42);
@@ -1198,6 +1413,11 @@ export class Game {
       this._mission04GunLocal.set(side * 1.45, -0.1, -2.35);
       this._fireOrigin.copy(hero.localToWorld(this._mission04GunLocal));
       this._fireDir.subVectors(this._aimTarget, this.camera.position).normalize();
+    } else if (this.missionId === 'mission06') {
+      const muzzle = this.groundAssaultMission.playerActor?.userData?.muzzle;
+      if (muzzle) muzzle.getWorldPosition(this._fireOrigin);
+      else this._fireOrigin.copy(this.ship.group.position).add(new THREE.Vector3(0, 3.8, -1.1));
+      this._fireDir.subVectors(this._aimTarget, this._fireOrigin).normalize();
     } else {
       this._fireOrigin.copy(this.ship.nextGunPosition(this._v));
       this._fireDir.subVectors(this._aimTarget, this._fireOrigin).normalize();
@@ -1260,6 +1480,15 @@ export class Game {
       );
     }
     if (this.missionId === 'mission04') this.handleShieldSatelliteCollisions();
+    if (this.missionId === 'mission05') {
+      this.hegemonyCanyonRun.applyCollision(
+        this.ship.group.position,
+        (amt) => this.applyDamage(amt),
+        this.sound,
+        this.explosions
+      );
+    }
+    if (this.missionId === 'mission06') this.handleGroundAssaultCollisions();
 
     // Lasers ennemis → n'importe quel appareil de l'escadron (dégâts du bolt)
     for (const pool of [this.enemyLasers, this.enemyHeavyLasers]) {
@@ -1304,9 +1533,22 @@ export class Game {
     });
   }
 
+  handleGroundAssaultCollisions() {
+    for (const pool of [this.lasers, this.alliedLasers]) {
+      pool.forEachActive((laser) => {
+        const result = this.groundAssaultMission.handleLaser(laser, this.explosions, this.sound);
+        if (!result.hit) return;
+        pool.release(laser);
+        if (result.score > 0) this.score += result.score;
+      });
+    }
+  }
+
   completeMission() {
     if (this.missionComplete) return;
     this.missionComplete = true;
+    this.recordHighScore();
+    this.scene.fog = this.defaultSceneFog;
     this.input.lockAllowed = false;
     this.hudBoss.classList.add('hidden');
     if (this.mission04CameraSquadron) this.mission04CameraSquadron.visible = false;
@@ -1319,6 +1561,12 @@ export class Game {
     } else if (this.missionId === 'mission04') {
       this.hudMissionCompleteTitle.textContent = 'BOUCLIER OUVERT';
       this.hudMissionCompleteSubtitle.textContent = 'SATELLITES DETRUITS';
+    } else if (this.missionId === 'mission05') {
+      this.hudMissionCompleteTitle.textContent = 'CAPITALE EN VUE';
+      this.hudMissionCompleteSubtitle.textContent = 'COULOIR FRANCHI';
+    } else if (this.missionId === 'mission06') {
+      this.hudMissionCompleteTitle.textContent = 'CAPITALE INVESTIE';
+      this.hudMissionCompleteSubtitle.textContent = 'LIGNES ENNEMIES BRISEES';
     } else {
       this.hudMissionCompleteTitle.textContent = 'ROUTE LIBEREE';
       this.hudMissionCompleteSubtitle.textContent = 'VAISSEAU-MERE DETRUIT';
@@ -1349,17 +1597,29 @@ export class Game {
       this.endDebrief();
       return;
     }
-    if (!DEBRIEF_VIDEO_BY_MISSION[this.missionId]) {
+    const debriefEntry = DEBRIEF_VIDEO_BY_MISSION[this.missionId];
+    if (!debriefEntry) {
+      this.endDebrief();
+      return;
+    }
+    this.debriefVideoQueue = Array.isArray(debriefEntry) ? [...debriefEntry] : [debriefEntry];
+    this.debriefVideoIndex = 0;
+    this.playDebriefVideoAtIndex();
+  }
+
+  playDebriefVideoAtIndex() {
+    if (!this.debriefVideo || this.debriefVideoIndex >= this.debriefVideoQueue.length) {
       this.endDebrief();
       return;
     }
     this.debriefAi?.classList.add('hidden');
     this.debriefCommander?.classList.add('hidden');
     this.debriefVideo.classList.remove('hidden');
-    this.debriefVideo.src = assetUrl(
-      DEBRIEF_VIDEO_BY_MISSION[this.missionId] || DEBRIEF_VIDEO_BY_MISSION.mission01
-    );
+    const videoPath = this.debriefVideoQueue[this.debriefVideoIndex];
+    this.debriefVideo.src = assetUrl(videoPath);
     this.debriefVideo.currentTime = 0;
+    this.stopDebriefAudio();
+    this.playDebriefAudio(videoPath);
     if (this.debriefTimer) clearTimeout(this.debriefTimer);
     this.debriefTimer = setTimeout(() => this.endDebrief(), VIDEO_DEBRIEF_FALLBACK_DURATION);
     this.debriefVideo.addEventListener(
@@ -1374,17 +1634,32 @@ export class Game {
     this.debriefVideo.play().catch(() => this.endDebrief());
     this.debriefVideo.addEventListener(
       'ended',
-      () => (this.missionId === 'mission02' ? this.startCommanderBriefing() : this.endDebrief()),
+      () => this.handleDebriefVideoEnded(),
       { once: true }
     );
     if (this.missionId === 'mission02') {
       this.debriefVideo.addEventListener('error', () => this.startAiDebrief(), { once: true });
     } else {
-      this.debriefVideo.addEventListener('error', () => this.endDebrief(), { once: true });
+      this.debriefVideo.addEventListener('error', () => this.handleDebriefVideoEnded(), { once: true });
     }
   }
 
+  handleDebriefVideoEnded() {
+    this.stopDebriefAudio();
+    if (this.missionId === 'mission02') {
+      this.startCommanderBriefing();
+      return;
+    }
+    this.debriefVideoIndex += 1;
+    if (this.debriefVideoIndex < this.debriefVideoQueue.length) {
+      this.playDebriefVideoAtIndex();
+      return;
+    }
+    this.endDebrief();
+  }
+
   startAiDebrief() {
+    this.stopDebriefAudio();
     this.debriefVideo?.pause();
     this.debriefVideo?.classList.add('hidden');
     this.debriefCommander?.classList.add('hidden');
@@ -1398,6 +1673,7 @@ export class Game {
   }
 
   async startCommanderBriefing() {
+    this.stopDebriefAudio();
     this.debriefVideo?.pause();
     this.debriefVideo?.classList.add('hidden');
     this.debriefAi?.classList.add('hidden');
@@ -1417,9 +1693,54 @@ export class Game {
     this.debriefTimer = setTimeout(() => this.endDebrief(), durationMs);
   }
 
+  recordHighScore() {
+    try {
+      const scores = { ...DEFAULT_HIGH_SCORES, ...(JSON.parse(localStorage.getItem(HIGH_SCORES_KEY)) || {}) };
+      const byDifficulty = { ...(scores[this.difficultyId] || {}) };
+      const current = byDifficulty[this.missionId] || DEFAULT_HIGH_SCORES[this.difficultyId]?.[this.missionId] || { score: 0 };
+      const currentScore = Math.max(0, Math.floor(Number(current.score ?? current) || 0));
+      if (Math.floor(this.score) > currentScore) {
+        byDifficulty[this.missionId] = { name: 'LYNX', score: Math.floor(this.score) };
+        scores[this.difficultyId] = byDifficulty;
+        localStorage.setItem(HIGH_SCORES_KEY, JSON.stringify(scores));
+      }
+    } catch {
+      // Record local non critique.
+    }
+  }
+
+  playDebriefAudio(videoPath) {
+    const cfg = DEBRIEF_AUDIO_BY_VIDEO[videoPath];
+    if (!cfg) return;
+    if (cfg.music) this.sound.playMusic(cfg.music, { volume: cfg.volume ?? 0.55, fade: 0.15 });
+    if (cfg.engine) {
+      this.debriefEngineAudioActive = true;
+      this.sound.setLoop('heroEngine', { volume: 0.32, rate: 1.08 });
+      this.sound.play('heroBoost', { volume: 0.38, group: 'engine', minInterval: 0.1 });
+    }
+    for (const item of cfg.sfx || []) {
+      const timer = setTimeout(() => {
+        this.sound.play(item.name, { volume: item.volume ?? 0.5, group: 'sfx', minInterval: 0.02 });
+      }, item.delay || 0);
+      this.debriefAudioTimers.push(timer);
+    }
+  }
+
+  stopDebriefAudio() {
+    for (const timer of this.debriefAudioTimers || []) clearTimeout(timer);
+    this.debriefAudioTimers = [];
+    if (this.debriefEngineAudioActive) {
+      this.sound.setLoop('heroEngine', { volume: 0 });
+      this.debriefEngineAudioActive = false;
+    }
+    const videoPath = this.debriefVideoQueue?.[this.debriefVideoIndex];
+    if (videoPath && DEBRIEF_AUDIO_BY_VIDEO[videoPath]?.music) this.sound.stopMusic({ fade: 0.25 });
+  }
+
   endDebrief() {
     if (this.debriefDone) return;
     this.debriefDone = true;
+    this.stopDebriefAudio();
     if (this.debriefTimer) {
       clearTimeout(this.debriefTimer);
       this.debriefTimer = null;
@@ -1467,6 +1788,26 @@ export class Game {
       return;
     }
     if (this.missionId === 'mission04') {
+      const next = new URL(location.href);
+      next.searchParams.set('mission', 'mission05');
+      next.searchParams.set('difficulty', this.difficultyId);
+      next.searchParams.set('score', String(this.score));
+      next.searchParams.set('autostart', '1');
+      next.searchParams.delete('skipBrief');
+      location.href = next.toString();
+      return;
+    }
+    if (this.missionId === 'mission05') {
+      const next = new URL(location.href);
+      next.searchParams.set('mission', 'mission06');
+      next.searchParams.set('difficulty', this.difficultyId);
+      next.searchParams.set('score', String(this.score));
+      next.searchParams.set('autostart', '1');
+      next.searchParams.delete('skipBrief');
+      location.href = next.toString();
+      return;
+    }
+    if (this.missionId === 'mission06') {
       location.href = `${location.origin}${location.pathname}`;
       return;
     }
@@ -1523,13 +1864,15 @@ export class Game {
     this.input.lockAllowed = false;
     this.setPaused(false);
     const vehemenceLost = this.missionId === 'mission03' && this.vehemenceDefense.defeated;
+    const groundAssaultDeath = this.missionId === 'mission06';
+    if (groundAssaultDeath) this.groundAssaultMission.playPlayerDeath();
     if (this.hudGameOverTitle) this.hudGameOverTitle.textContent = vehemenceLost ? 'VEHEMENCE DETRUIT' : 'GAME OVER';
     if (this.hudGameOverSubtitle) {
       this.hudGameOverSubtitle.innerHTML = vehemenceLost
         ? `ECHEC DE LA MISSION<br>SCORE FINAL : <span id="final-score">${this.score}</span>`
         : `SCORE FINAL : <span id="final-score">${this.score}</span>`;
     }
-    if (!vehemenceLost) {
+    if (!vehemenceLost && !groundAssaultDeath) {
       this.sound.explosion('medium', this.ship.group.position);
       this.explosions.spawn(this.ship.group.position);
     }
@@ -1545,6 +1888,14 @@ export class Game {
   updateCamera(dt) {
     if (this.missionId === 'mission04') {
       this.updateMission04Camera(dt);
+      return;
+    }
+    if (this.missionId === 'mission05') {
+      this.updateMission05Camera(dt);
+      return;
+    }
+    if (this.missionId === 'mission06') {
+      this.updateMission06Camera(dt);
       return;
     }
     const sp = this.ship.group.position;
@@ -1564,6 +1915,60 @@ export class Game {
     this.camera.lookAt(this._look);
 
     const targetFov = BASE_FOV + this.ship.boostAmount * 12;
+    if (Math.abs(targetFov - this.camera.fov) > 0.01) {
+      this.camera.fov += (targetFov - this.camera.fov) * k;
+      this.camera.updateProjectionMatrix();
+    }
+  }
+
+  updateMission05Camera(dt) {
+    const sp = this.ship.group.position;
+    const k = 1 - Math.exp(-5.2 * dt);
+    this._camTarget.set(sp.x * 0.66, sp.y * 0.55 + 22, sp.z + 34);
+    this.camera.position.lerp(this._camTarget, k);
+
+    if (this.shake > 0) {
+      this.shake = Math.max(0, this.shake - dt * 1.6);
+      this.camera.position.x += (Math.random() - 0.5) * this.shake * 1.6;
+      this.camera.position.y += (Math.random() - 0.5) * this.shake * 1.6;
+    }
+
+    this._look.set(sp.x * 0.82, -31, sp.z - 108);
+    this.camera.lookAt(this._look);
+    const targetFov = BASE_FOV + 2 + this.ship.boostAmount * 9;
+    if (Math.abs(targetFov - this.camera.fov) > 0.01) {
+      this.camera.fov += (targetFov - this.camera.fov) * k;
+      this.camera.updateProjectionMatrix();
+    }
+  }
+
+  // Caméra à l'épaule : orbite derrière/au-dessus du personnage selon le
+  // cap (souris), au lieu d'un décalage fixe en espace monde qui perdait
+  // le personnage dès qu'il tournait ou avançait de travers.
+  updateMission06Camera(dt) {
+    const sp = this.ship.group.position;
+    const yaw = this.mission06Yaw;
+    const pitch = this.mission06Pitch;
+    const cosPitch = Math.cos(pitch);
+    const lookDir = this._v.set(-Math.sin(yaw) * cosPitch, Math.sin(pitch), -Math.cos(yaw) * cosPitch);
+
+    const k = 1 - Math.exp(-8.0 * dt);
+    this._camTarget.copy(sp)
+      .addScaledVector(lookDir, -MISSION06_CAMERA_DISTANCE)
+      .add(this._v2.set(0, MISSION06_CAMERA_HEIGHT, 0));
+    this.camera.position.lerp(this._camTarget, k);
+
+    if (this.shake > 0) {
+      this.shake = Math.max(0, this.shake - dt * 1.6);
+      this.camera.position.x += (Math.random() - 0.5) * this.shake * 1.6;
+      this.camera.position.y += (Math.random() - 0.5) * this.shake * 1.6;
+    }
+
+    this._look.copy(sp)
+      .addScaledVector(lookDir, MISSION06_LOOK_DISTANCE)
+      .add(this._v2.set(0, 6, 0));
+    this.camera.lookAt(this._look);
+    const targetFov = 62 + this.ship.boostAmount * 5;
     if (Math.abs(targetFov - this.camera.fov) > 0.01) {
       this.camera.fov += (targetFov - this.camera.fov) * k;
       this.camera.updateProjectionMatrix();
@@ -1646,6 +2051,8 @@ export class Game {
     if (this.bossStarted && !this.boss.defeated) {
       const bossHud =
         this.missionId === 'mission04' ? this.shieldSatelliteAssault :
+        this.missionId === 'mission05' ? this.hegemonyCanyonRun :
+        this.missionId === 'mission06' ? this.groundAssaultMission :
         this.missionId === 'mission03' ? this.vehemenceDefense :
         this.missionId === 'mission02' ? this.asteroidField :
         this.boss;

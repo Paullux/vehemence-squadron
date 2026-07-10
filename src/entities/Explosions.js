@@ -68,6 +68,7 @@ class Explosion {
     }
     this.geo.attributes.position.needsUpdate = true;
     this.life = LIFETIME;
+    this.mat.color.set(options.color ?? 0xffa040);
     this.mat.opacity = 1;
     this.points.visible = true;
     this.spriteLife = SPRITE_LIFETIME;
@@ -75,6 +76,7 @@ class Explosion {
     this.sprite.position.copy(pos);
     this.sprite.scale.setScalar(this.spriteBaseScale * 0.55);
     this.spriteMat.map = explosionTextures[Math.floor(Math.random() * explosionTextures.length)];
+    this.spriteMat.color.set(options.spriteColor ?? 0xffffff);
     this.spriteMat.rotation = Math.random() * Math.PI * 2;
     this.spriteMat.opacity = 0.95;
     this.spriteMat.needsUpdate = true;
@@ -111,7 +113,7 @@ class Explosion {
 
 export class ExplosionPool {
   constructor(scene) {
-    this.items = Array.from({ length: 10 }, () => new Explosion(scene));
+    this.items = Array.from({ length: 32 }, () => new Explosion(scene));
   }
 
   spawn(pos, options) {

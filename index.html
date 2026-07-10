@@ -180,6 +180,7 @@
       display: flex; flex-direction: column; align-items: center; gap: 2px;
     }
     #mission-switch button { flex: 1 1 180px; min-width: 160px; }
+    #intro-tool-switch button { flex: 1 1 190px; min-width: 170px; }
     .intro-switch button span { font-size: 10px; letter-spacing: 2px; opacity: .76; }
     .intro-switch button.active {
       border-color: rgba(125, 255, 230, .86);
@@ -189,6 +190,25 @@
       box-shadow: 0 0 16px rgba(35, 215, 207, .22), inset 0 0 18px rgba(35, 215, 207, .1);
     }
     .intro-switch button.active::before { content: "SELECTION"; font-size: 9px; letter-spacing: 2px; color: #79fff1; }
+    .intro-tool-panel {
+      width: 100%;
+      border: 1px solid rgba(125, 255, 230, .28);
+      background: rgba(2, 8, 14, .58);
+      padding: 12px;
+      box-sizing: border-box;
+    }
+    .intro-tool-panel .pause-row { grid-template-columns: 118px 1fr 44px; }
+    .intro-save-actions {
+      display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; margin-top: 10px;
+    }
+    .intro-score-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 12px; text-align: left;
+      font-size: 12px; letter-spacing: 1px;
+    }
+    .intro-score-grid h3 { margin: 0 0 8px; color: #79fff1; font-size: 13px; letter-spacing: 3px; }
+    .intro-score-grid ol { margin: 0; padding-left: 22px; line-height: 1.7; }
+    .intro-score-grid span { float: right; color: #dffefa; }
+    @media (max-width: 720px) { .intro-score-grid { grid-template-columns: 1fr; } }
     #intro.playing #intro-panel { opacity: 0; pointer-events: none; transition: opacity .35s ease; }
     #intro-skip {
       position: absolute; right: 18px; bottom: 16px; z-index: 2;
@@ -406,12 +426,34 @@
     <div id="intro-panel">
       <img src="/branding/vehemence-squadron-logo.png" alt="Vehemence Squadron">
       <p>TRANSMISSION DE RECRUTEMENT CONFEDEREE</p>
-      <p class="test-label">MODE TEST - SELECTION DU NIVEAU</p>
-      <div id="mission-switch" class="intro-switch" role="group" aria-label="Mission">
+      <p class="test-label">PARAMETRES DE VOL</p>
+      <div id="intro-tool-switch" class="intro-switch" role="group" aria-label="Parametres">
+        <button id="intro-highscores-toggle" class="active" type="button" aria-pressed="true">HIGH SCORES</button>
+        <button id="intro-audio-toggle" type="button" aria-pressed="false">OPTIONS <span>SONORES</span></button>
+        <button id="intro-save-toggle" type="button" aria-pressed="false">SAUVEGARDES</button>
+      </div>
+      <section id="intro-highscores-panel" class="intro-tool-panel">
+        <div id="intro-highscores" class="intro-score-grid"></div>
+      </section>
+      <section id="intro-audio-panel" class="intro-tool-panel hidden">
+        <label class="pause-row">MASTER <input id="intro-audio-master" type="range" min="0" max="100" value="72"><span id="intro-audio-master-value">72</span></label>
+        <label class="pause-row">MUSIQUE <input id="intro-audio-music" type="range" min="0" max="100" value="42"><span id="intro-audio-music-value">42</span></label>
+        <label class="pause-row">SFX <input id="intro-audio-sfx" type="range" min="0" max="100" value="85"><span id="intro-audio-sfx-value">85</span></label>
+        <label class="pause-row">VOIX <input id="intro-audio-voice" type="range" min="0" max="300" value="220"><span id="intro-audio-voice-value">220</span></label>
+      </section>
+      <section id="intro-save-panel" class="intro-tool-panel hidden">
+        <p id="intro-save-status">Aucune sauvegarde de mission.</p>
+        <div class="intro-save-actions">
+          <button id="intro-clear-save" type="button">EFFACER</button>
+        </div>
+      </section>
+      <div id="mission-switch" class="intro-switch hidden" role="group" aria-label="Mission">
         <button id="mission-01" class="active" type="button" aria-pressed="true">MISSION 1<span>ROUTE KHAROS-3</span></button>
         <button id="mission-02" type="button" aria-pressed="false">MISSION 2<span>COURONNE ROUGE</span></button>
         <button id="mission-03" type="button" aria-pressed="false">MISSION 3<span>DEFENSE DU VEHEMENCE</span></button>
         <button id="mission-04" type="button" aria-pressed="false">MISSION 4<span>CHEZ L'HEGEMONIE</span></button>
+        <button id="mission-05" type="button" aria-pressed="false">MISSION 5<span>CAPITALE HEGEMONIE</span></button>
+        <button id="mission-06" type="button" aria-pressed="false">MISSION 6<span>ASSAUT AU SOL</span></button>
       </div>
       <div id="difficulty-switch" class="intro-switch" role="group" aria-label="Mode de difficulté">
         <button id="difficulty-pilot" class="active" type="button" aria-pressed="true">PILOTE<span>CONFIRME</span></button>
@@ -437,7 +479,7 @@
         <span id="mission-objective-text">Abattre les patrouilles, tenir le corridor, préserver l'escadron Aquila.</span>
       </div>
       <div id="mission-load"><div id="mission-progress"></div></div>
-      <div id="mission-status">CHARGEMENT DES APPAREILS 3D</div>
+      <div id="mission-status">CHARGEMENT DES MODELES 3D</div>
     </div>
   </div>
   <div id="debrief" class="hidden">

@@ -24,6 +24,9 @@ const SFX = {
   explosionSmall: `${SFX_PATH}explosion_small.wav`,
   explosionMedium: `${SFX_PATH}explosion_medium.wav`,
   explosionBig: `${SFX_PATH}explosion_big_destroyer.wav`,
+  mission6CityExplosions: `${SFX_PATH}mission6_final/mission6_city_explosions_full.mp3`,
+  mission6OrbitalBombardment: `${SFX_PATH}mission6_final/mission6_orbital_bombardment_rumble.mp3`,
+  mission6ArmyMarch: `${SFX_PATH}mission6_final/mission6_army_crowd_march_sfx.mp3`,
   uiSelect: `${SFX_PATH}ui_select.wav`,
   uiWarning: `${SFX_PATH}ui_warning.wav`,
 };
@@ -33,6 +36,9 @@ const MUSIC = {
   hangar: `${MUSIC_PATH}Hangar%20-%20Carrier%20Vehemence.wav`,
   generalBoss: `${MUSIC_PATH}General%20Destroyer%20Boss.wav`,
   victory: `${MUSIC_PATH}Victory%20Debrief.wav`,
+  mission6PrisonerTransfer: `${MUSIC_PATH}mission6_final/mission6_prisoner_transfer_score.mp3`,
+  mission6PlanetBombardment: `${MUSIC_PATH}mission6_final/mission6_planet_bombardment_score.mp3`,
+  mission6VictoryCelebration: `${MUSIC_PATH}mission6_final/mission6_victory_celebration_score.mp3`,
 };
 
 // Répliques radio de l'escadron. Fichiers attendus dans public/audio/voice/
@@ -222,6 +228,7 @@ export class SoundManager {
 
   playAt(name, position, { volume = 1, rate = 1, detune = 0, minInterval = 0, group = 'sfx' } = {}) {
     if (!this.enabled) return null;
+    if (!this.buffers.has(name) && SFX[name]) this.load(name, SFX[name]);
     const now = this.ctx.currentTime;
     const last = this.lastPlayed.get(name) || -Infinity;
     if (now - last < minInterval) return null;
@@ -321,6 +328,14 @@ export class SoundManager {
     source.start();
     gain.gain.setTargetAtTime(volume, now, fade / 3);
     this.currentMusic = { name, source, gain, volume };
+  }
+
+  stopMusic({ fade = 0.35 } = {}) {
+    if (!this.enabled || !this.currentMusic) return;
+    const now = this.ctx.currentTime;
+    this.currentMusic.gain.gain.setTargetAtTime(0, now, fade / 3);
+    this.currentMusic.source.stop(now + fade);
+    this.currentMusic = null;
   }
 
   updateHeroEngine({ boostAmount = 0, forwardSpeed = 60, boosting = false }) {

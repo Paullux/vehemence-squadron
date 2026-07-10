@@ -98,7 +98,9 @@ verrou.
 la souris pilote le cap du vaisseau sans butée (là où tu regardes, tu voles —
 le réticule reste fixe au centre de l'écran), `Z` avance / `S` recule
 (rapproche/éloigne du bouclier, rayon borné), `Q`/`D` font rouler le vaisseau
-et le déplacent latéralement (tangentiel). Le tir part du vaisseau et vise le
+et le déplacent latéralement (tangentiel). Vitesse avec inertie (accélération
+et freinage progressifs, vitesse mini non nulle) et boost clic droit temporaire
+(`MISSION04_*` dans `Game.js`). Le tir part du vaisseau et vise le
 long de l'axe caméra→cible (`firePlayerLaser`, branche `mission04`). Ce schéma
 est indépendant de `moveX`/`moveY` (vol sur rail, inchangé). Testé et affiné
 avec Paul sur plusieurs allers-retours : correction d'un saut de cap parasite
@@ -109,6 +111,22 @@ clavier manquants pour AZERTY sur `throttle`/`roll` (`KeyZ`+`KeyW`,
 qui n'était pas "billboard" (plan figé dans l'espace, vu de tranche dès que
 la caméra tournait librement) — il copie maintenant l'orientation caméra
 chaque frame.
+
+**Mission 6 / assaut au sol — troisième personne** (`updateMission06Player`
+et `updateMission06Camera` dans `Game.js`) : même famille de contrôles que la
+mission 4 (souris = cap + tangage caméra, `Z`/`S`/flèches = avancer/reculer,
+`Q`/`D`/flèches = déplacement latéral, Maj/clic droit = sprint), mais adaptée
+au sol — le personnage tourne réellement avec la souris (`mission06Yaw`/
+`mission06Pitch`, pas un simple wobble caméra) et la caméra orbite
+derrière-au-dessus du personnage à la manière d'un TPS classique
+(`MISSION06_CAMERA_DISTANCE`/`_HEIGHT`, tangage borné par
+`MISSION06_PITCH_LIMIT` — pas de tangage libre façon vaisseau). Le mouvement
+est calculé par rapport au cap (`yaw`), pas sur les axes monde bruts : tourner
+le personnage change désormais réellement sa direction de marche. Remplace une
+première version où la caméra restait à un offset fixe dans l'espace monde et
+où le déplacement ignorait la rotation du personnage (le TPS ne "tournait" pas
+vraiment) — signalé par Paul début juillet 2026, corrigé par Claude après que
+Codex n'y soit pas arrivé.
 
 **Menu pause** : `Espace` ouvre un panneau en jeu avec réglages audio
 persistants (`localStorage`) et sauvegarde légère de mission (score, bouclier,
@@ -153,11 +171,12 @@ checkpoint informatif ; la reprise exacte d'un état 3D viendra avec la machine
 - **Flux campagne actuel** : mission 1 → cinématique de fin → briefing mission 2 →
   décollage ; mission 2 → cinématique + briefing commandant → briefing mission 3 →
   décollage ; mission 3 → cinématique de fin → briefing mission 4 → décollage ;
-  mission 4 → cinématique de fin → retour menu (rechargement sans paramètres d'URL).
-  Chaque transition passe par l'URL (`mission`, `difficulty`, `score`, `autostart=1`) :
-  le score est cumulé et le mode de difficulté (`PILOTE` ou `CADET`) conservé sur
-  toute la campagne. Vérifié en direct de bout en bout (fin mission 3 → auto-lancement
-  mission 4 avec score transmis) le 09/07/2026.
+  mission 4 → cinématique de fin → briefing mission 5 → décollage ; mission 5 →
+  briefing mission 6 → assaut au sol. Chaque transition passe par l'URL
+  (`mission`, `difficulty`, `score`, `autostart=1`) : le score est cumulé et le
+  mode de difficulté (`PILOTE` ou `CADET`) conservé sur toute la campagne.
+  Chaînage mission 4 → mission 5 vérifié en direct le 10/07/2026 (`endDebrief`,
+  `Game.js`) ; chaînage mission 3 → mission 4 vérifié le 09/07/2026.
 - **Menu de test** : pendant la phase de développement, l'écran d'intro garde un
   sélecteur Mission 1 / Mission 2 / Mission 3 / Mission 4 et un sélecteur de
   difficulté. En fin de production, ce choix devra être remplacé par un flux plus
@@ -295,6 +314,22 @@ checkpoint informatif ; la reprise exacte d'un état 3D viendra avec la machine
   directement vers la planète rouge après l'ouverture du bouclier. Les prompts et
   sources sont conservés côté source dans
   `I:\jeu Space Opera Threejs - Source\pipeline-assets\cinematics\fourth_mission_end\`.
+- **Mission 5 : Couloir de la Capitale** (`src/entities/HegemonyCanyonRun.js`) :
+  vol sur rail dans les canyons de la planète rouge (`hegemony_red_orbit`) une
+  fois le bouclier ouvert, jusqu'à l'approche de la capitale de l'Hégémonie —
+  éviter montagnes/parois, abattre les chasseurs, atteindre la capitale. Fin de
+  mission enchaîne automatiquement sur la mission 6 (`endDebrief`, `Game.js`).
+- **Mission 6 : Assaut au sol** (`src/entities/GroundAssaultMission.js`) : le
+  *Véhémence* a débarqué les troupes ; assaut terrestre en **vraie troisième
+  personne** vers la capitale, avec troupes alliées/ennemies (personnages
+  GLB/FBX + animations Mixamo, IA basique alliée/ennemie qui tire), objectif de
+  kills (`ENEMY_KILL_TARGET`). Contrôles et caméra détaillés en §5 — refonte
+  du 10/07/2026 pour un vrai pilotage TPS (cap du personnage piloté par la
+  souris, caméra orbitale synchronisée), la première version ne tournant pas
+  réellement avec le personnage.
+  La campagne s'enchaîne maintenant en entier : mission 4 → mission 5 → mission 6
+  (fin de mission 6 → retour menu). Le sélecteur de test de l'écran d'intro permet
+  toujours de lancer directement n'importe quelle mission 1 à 6.
 - **Bouclier du héros : 100 PV** (laser ennemi -12, collision -25), régénération
   +4 PV/s après 5 s sans dégât. HUD : barre de bouclier (vert/orange/rouge), vignette
   rouge d'impact, secousse caméra. **Game over** avec score final, restart ESPACE/A.
