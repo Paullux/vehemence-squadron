@@ -214,6 +214,40 @@
       position: absolute; right: 18px; bottom: 16px; z-index: 2;
       opacity: .65;
     }
+    #privacy-banner {
+      position: fixed; left: 50%; bottom: 16px; z-index: 50;
+      transform: translateX(-50%);
+      width: min(860px, calc(100vw - 28px));
+      display: grid; grid-template-columns: 1fr auto; gap: 14px; align-items: center;
+      box-sizing: border-box; padding: 14px 16px;
+      font-family: "Consolas", "Lucida Console", monospace;
+      color: #dffefa; letter-spacing: 1px;
+      background: rgba(2, 8, 14, .92);
+      border: 1px solid rgba(125, 255, 230, .58);
+      box-shadow: 0 0 26px rgba(35, 215, 207, .18), inset 0 0 20px rgba(35, 215, 207, .06);
+      text-shadow: 0 0 8px rgba(35, 215, 207, .42);
+    }
+    #privacy-banner p {
+      margin: 0; font-size: 12px; line-height: 1.45; opacity: .9;
+    }
+    #privacy-banner strong {
+      display: block; margin-bottom: 3px; color: #79fff1;
+      font-size: 13px; letter-spacing: 2px;
+    }
+    #privacy-banner button {
+      border: 1px solid rgba(125, 255, 230, .68); color: #dffefa;
+      background: rgba(11, 34, 48, .84); padding: 9px 12px;
+      font: inherit; font-size: 12px; letter-spacing: 2px; cursor: pointer;
+      box-shadow: 0 0 14px rgba(35, 215, 207, .16);
+    }
+    #privacy-banner button:hover { background: rgba(24, 77, 94, .95); }
+    #privacy-reject { opacity: .76; }
+    #privacy-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+    @media (max-width: 720px) {
+      #privacy-banner { grid-template-columns: 1fr; }
+      #privacy-actions { justify-content: stretch; }
+      #privacy-actions button { flex: 1 1 130px; }
+    }
     #debrief {
       position: fixed; inset: 0; z-index: 20; display: flex;
       align-items: center; justify-content: center; background: #02050b;
@@ -504,6 +538,16 @@
       </div>
     </div>
     <button id="debrief-skip" class="hidden" type="button">PASSER</button>
+  </div>
+  <div id="privacy-banner" class="hidden" role="dialog" aria-live="polite" aria-label="Consentement mesure d'audience">
+    <p>
+      <strong>CONFIDENTIALITE</strong>
+      Autoriser une mesure d'audience sans cookie publicitaire pour compter les essais du jeu et les missions terminees. Aucun suivi n'est lance avant votre accord.
+    </p>
+    <div id="privacy-actions">
+      <button id="privacy-reject" type="button">REFUSER</button>
+      <button id="privacy-accept" type="button">ACCEPTER</button>
+    </div>
   </div>
   <div id="launch-sequence" class="hidden">
     <div id="launch-top-left">CONFEDERATION DES MONDES LIBRES</div>

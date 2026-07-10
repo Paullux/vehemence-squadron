@@ -1,5 +1,6 @@
 import { Game } from './core/Game.js';
 import { preloadShipModels } from './core/ShipModel.js';
+import { initAnalytics, trackEvent } from './core/Analytics.js';
 import { assetUrl } from './core/assetUrl.js';
 import { HERO_MODEL } from './entities/PlayerShip.js';
 import { ENEMY_TYPES } from './entities/Targets.js';
@@ -45,6 +46,9 @@ const mission06 = document.getElementById('mission-06');
 const difficultyPilot = document.getElementById('difficulty-pilot');
 const difficultyCadet = document.getElementById('difficulty-cadet');
 const introSkip = document.getElementById('intro-skip');
+const privacyBanner = document.getElementById('privacy-banner');
+const privacyAccept = document.getElementById('privacy-accept');
+const privacyReject = document.getElementById('privacy-reject');
 const missionBrief = document.getElementById('mission-brief');
 const missionKicker = document.getElementById('mission-kicker');
 const missionTitle = document.getElementById('mission-title');
@@ -266,6 +270,7 @@ function setDifficulty(difficulty) {
   difficultyCadet.classList.toggle('active', difficulty === 'cadet');
   difficultyPilot.setAttribute('aria-pressed', difficulty === 'pilot' ? 'true' : 'false');
   difficultyCadet.setAttribute('aria-pressed', difficulty === 'cadet' ? 'true' : 'false');
+  trackEvent('difficulty_selected', { difficulty });
 }
 
 function setMission(missionId) {
@@ -282,11 +287,18 @@ function setMission(missionId) {
   mission04.setAttribute('aria-pressed', missionId === 'mission04' ? 'true' : 'false');
   mission05.setAttribute('aria-pressed', missionId === 'mission05' ? 'true' : 'false');
   mission06.setAttribute('aria-pressed', missionId === 'mission06' ? 'true' : 'false');
+  trackEvent('mission_selected', { missionId });
 }
 
 async function startGame(difficulty = selectedDifficulty, options = {}) {
   if (game || starting) return;
   starting = true;
+  trackEvent('game_start', {
+    missionId: selectedMission,
+    difficulty,
+    skipBrief: options.skipBrief ? 1 : 0,
+    initialScore: options.initialScore || 0,
+  });
   const brief = MISSION_BRIEFS[selectedMission];
   missionKicker.textContent = brief.kicker;
   missionTitle.textContent = brief.title;
@@ -337,6 +349,7 @@ async function startGame(difficulty = selectedDifficulty, options = {}) {
 async function playIntro() {
   intro.classList.add('playing');
   introSkip.classList.remove('hidden');
+  trackEvent('intro_transmission_started', { difficulty: selectedDifficulty });
   try {
     introVideo.currentTime = 0;
     await introVideo.play();
@@ -371,7 +384,9 @@ introSaveToggle?.addEventListener('click', () => setIntroTool('save'));
 introClearSave?.addEventListener('click', () => {
   localStorage.removeItem(MISSION_SAVE_KEY);
   updateIntroSaveStatus();
+  trackEvent('save_cleared');
 });
+initAnalytics({ banner: privacyBanner, accept: privacyAccept, reject: privacyReject });
 setupIntroAudioControls();
 updateIntroSaveStatus();
 updateIntroHighScores();

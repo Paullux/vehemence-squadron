@@ -1,0 +1,7 @@
+{
+  "enabled": true,
+  "provider": "matomo",
+  "endpoint": "https://stats.social-hub.fr/matomo.php",
+  "site": "vehemence-squadron",
+  "siteId": 4
+}

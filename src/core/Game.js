@@ -15,6 +15,7 @@ import { Starfield } from '../world/Starfield.js';
 import { Environment } from '../world/Environment.js';
 import { SoundManager } from './SoundManager.js';
 import { loadShipModel } from './ShipModel.js';
+import { trackEvent } from './Analytics.js';
 import { MAX_HP, REGEN_DELAY, REGEN_RATE, getDifficulty } from './combat.js';
 import { assetUrl } from './assetUrl.js';
 import { makeHaloSprite } from './halo.js';
@@ -1548,6 +1549,13 @@ export class Game {
     if (this.missionComplete) return;
     this.missionComplete = true;
     this.recordHighScore();
+    trackEvent('mission_complete', {
+      missionId: this.missionId,
+      difficulty: this.difficultyId,
+      score: Math.floor(this.score),
+      hp: Math.round(this.hp),
+      missionTime: Math.round(this.missionTime || 0),
+    });
     this.scene.fog = this.defaultSceneFog;
     this.input.lockAllowed = false;
     this.hudBoss.classList.add('hidden');
@@ -1865,6 +1873,13 @@ export class Game {
     this.setPaused(false);
     const vehemenceLost = this.missionId === 'mission03' && this.vehemenceDefense.defeated;
     const groundAssaultDeath = this.missionId === 'mission06';
+    trackEvent('game_over', {
+      missionId: this.missionId,
+      difficulty: this.difficultyId,
+      score: Math.floor(this.score),
+      hp: Math.round(this.hp),
+      reason: vehemenceLost ? 'vehemence_destroyed' : 'player_destroyed',
+    });
     if (groundAssaultDeath) this.groundAssaultMission.playPlayerDeath();
     if (this.hudGameOverTitle) this.hudGameOverTitle.textContent = vehemenceLost ? 'VEHEMENCE DETRUIT' : 'GAME OVER';
     if (this.hudGameOverSubtitle) {
