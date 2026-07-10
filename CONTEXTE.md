@@ -100,9 +100,15 @@ le réticule reste fixe au centre de l'écran), `Z` avance / `S` recule
 (rapproche/éloigne du bouclier, rayon borné), `Q`/`D` font rouler le vaisseau
 et le déplacent latéralement (tangentiel). Le tir part du vaisseau et vise le
 long de l'axe caméra→cible (`firePlayerLaser`, branche `mission04`). Ce schéma
-est indépendant de `moveX`/`moveY` (vol sur rail, inchangé). ⚠️ Non re-testé
-en jeu après la réécriture (environnement de preview indisponible ce
-tour-ci) — à valider manuellement.
+est indépendant de `moveX`/`moveY` (vol sur rail, inchangé). Testé et affiné
+avec Paul sur plusieurs allers-retours : correction d'un saut de cap parasite
+au premier mouvement souris après capture du Pointer Lock (délai de
+150 ms avant de lire les deltas, `POINTER_LOCK_SETTLE_MS`), des codes
+clavier manquants pour AZERTY sur `throttle`/`roll` (`KeyZ`+`KeyW`,
+`KeyQ`+`KeyA` — même piège que `moveX`/`moveY` plus haut), et un réticule
+qui n'était pas "billboard" (plan figé dans l'espace, vu de tranche dès que
+la caméra tournait librement) — il copie maintenant l'orientation caméra
+chaque frame.
 
 **Menu pause** : `Espace` ouvre un panneau en jeu avec réglages audio
 persistants (`localStorage`) et sauvegarde légère de mission (score, bouclier,
@@ -267,11 +273,11 @@ checkpoint informatif ; la reprise exacte d'un état 3D viendra avec la machine
   refondu (voir §5) : souris = cap, `Z`/`S` = avancer/reculer (rayon), `Q`/`D` =
   rouler + latéral ; relâcher tous les contrôles fige la position et la caméra
   dans la vue atteinte (propriété naturelle de l'accumulateur d'angle/rayon, pas
-  de logique de gel dédiée). Pour garder ce premier mode libre lisible,
-  l'Hégémonie n'envoie que des chasseurs dans cette mission. Ils naissent sous le
-  bouclier côté planète, ont une phase forcée de sortie au-dessus du champ, puis
-  passent en attaque sans collision-suicide avec Aquila. Objectif : détruire les
-  satellites qui génèrent le champ de force/bouclier planétaire de l'Hégémonie.
+  de logique de gel dédiée). **Aucun chasseur ennemi** dans cette mission (retiré
+  à la demande de Paul — `ShieldSatelliteAssault.launchFighters()` supprimé) :
+  la mission est purement un assaut de précision contre les satellites, sans
+  interception. Objectif : détruire les satellites qui génèrent le champ de
+  force/bouclier planétaire de l'Hégémonie.
   L'éclairage rouge très marqué de l'Hégémonie (`buildMissionLighting`) n'est
   ajouté à la scène qu'à la fin du décollage (`finishLaunch`), pas avant : sinon
   il teintait aussi la sortie du hangar, encore en espace neutre.

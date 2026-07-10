@@ -15,7 +15,6 @@ const SHIELD_RADIUS = 270;
 const PLANET_RADIUS = 190;
 const SATELLITE_HP = 6;
 const SATELLITE_HIT_RADIUS = 34;
-const FIGHTER_WAVE_INTERVAL = 5.2;
 const PLANET_TEXTURES = {
   albedo: '/textures/planets/red_planete/planet_albedo.png',
   normal: '/textures/planets/red_planete/planet_normal.png',
@@ -106,7 +105,6 @@ export class ShieldSatelliteAssault {
     this.active = false;
     this.complete = false;
     this.time = 0;
-    this.fighterCooldown = 1.2;
     this.destroyedCount = 0;
     this.breakDirs = [];
 
@@ -213,7 +211,6 @@ export class ShieldSatelliteAssault {
     this.active = true;
     this.complete = false;
     this.time = 0;
-    this.fighterCooldown = 1.2;
     this.destroyedCount = 0;
     this.breakDirs = [];
     this.center.set(0, -18, shipZ - 430);
@@ -232,7 +229,6 @@ export class ShieldSatelliteAssault {
 
   update(dt, ship, targets, sound = null, explosions = null, { enemyAggressionMultiplier = 1 } = {}) {
     if (!this.active || this.complete) return 0;
-    const aggression = Math.max(0.25, enemyAggressionMultiplier);
     this.time += dt;
     this.planet.rotation.y += dt * 0.018;
     this.planetRing.rotation.z += dt * 0.014;
@@ -240,7 +236,6 @@ export class ShieldSatelliteAssault {
     this.shieldMaterial.uniforms.time.value = this.time;
     this.shieldMaterial.uniforms.strength.value = Math.max(0, 1 - this.destroyedCount / SATELLITE_COUNT);
     this.updateSatellitePositions(dt);
-    this.launchFighters(dt, ship, targets, aggression);
     if (this.destroyedCount >= SATELLITE_COUNT) {
       this.complete = true;
       this.active = false;
@@ -265,32 +260,6 @@ export class ShieldSatelliteAssault {
       sat.mesh.rotation.x = Math.PI / 2;
       sat.mesh.rotation.y += dt * (0.25 + sat.spin);
       sat.halo.material.opacity = 0.26 + 0.14 * Math.sin(this.time * 3.1 + sat.group.userData.index);
-    }
-  }
-
-  launchFighters(dt, ship, targets, aggression) {
-    this.fighterCooldown -= dt * aggression;
-    if (this.fighterCooldown > 0) return;
-    this.fighterCooldown = rand(FIGHTER_WAVE_INTERVAL * 0.75, FIGHTER_WAVE_INTERVAL * 1.35);
-    const count = Math.random() > 0.45 ? 2 : 1;
-    _dir.subVectors(ship.group.position, this.center).normalize();
-    _side.crossVectors(_dir, new THREE.Vector3(0, 1, 0));
-    if (_side.lengthSq() < 0.01) _side.set(1, 0, 0);
-    _side.normalize();
-    _up.crossVectors(_side, _dir).normalize();
-    for (let i = 0; i < count; i++) {
-      const sideOffset = (i - (count - 1) * 0.5) * rand(28, 44) + rand(-12, 12);
-      _origin.copy(this.center)
-        .addScaledVector(_dir, PLANET_RADIUS + rand(34, 68))
-        .addScaledVector(_side, sideOffset)
-        .addScaledVector(_up, rand(-30, 30));
-      targets.launchFromMothership('basic_fighter', _origin, ship.group.position.z, {
-        clampAhead: false,
-        freeChase: true,
-        freeChaseCenter: this.center,
-        freeChaseExitDir: _dir,
-        freeChaseExitRadius: SHIELD_RADIUS + 170,
-      });
     }
   }
 

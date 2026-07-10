@@ -3,6 +3,11 @@
 
 const DEADZONE = 0.15;
 const MOUSE_SENSITIVITY = 0.0022;
+// Certains navigateurs renvoient un premier `movementX/Y` énorme et parasite
+// juste après l'acquisition du Pointer Lock (artefact du recentrage du
+// curseur caché par l'OS) : ignorer tout mouvement pendant ce court délai
+// évite un "saut" de cap incontrôlé au moment où le joueur capture la souris.
+const POINTER_LOCK_SETTLE_MS = 150;
 const deadzone = (v) => (Math.abs(v) > DEADZONE ? v : 0);
 const clamp = (v) => Math.max(-1, Math.min(1, v));
 const buttonPressed = (gp, i) => !!gp.buttons[i] && gp.buttons[i].pressed;
@@ -20,6 +25,7 @@ export class Input {
     // frame via consumeMouseDelta() puis remis à zéro.
     this._mouseDeltaX = 0;
     this._mouseDeltaY = 0;
+    this._lockAcquiredAt = 0;
 
     addEventListener('keydown', (e) => {
       if (e.code === 'Space') e.preventDefault();
@@ -36,6 +42,7 @@ export class Input {
     // (comportement natif du navigateur, rien à coder pour cette partie).
     target.addEventListener('mousemove', (e) => {
       if (!this.pointerLocked) return;
+      if (performance.now() - this._lockAcquiredAt < POINTER_LOCK_SETTLE_MS) return;
       this.pointer.x = clamp(this.pointer.x + e.movementX * MOUSE_SENSITIVITY);
       this.pointer.y = clamp(this.pointer.y - e.movementY * MOUSE_SENSITIVITY);
       this._mouseDeltaX += e.movementX;
@@ -54,6 +61,11 @@ export class Input {
 
     document.addEventListener('pointerlockchange', () => {
       this.pointerLocked = document.pointerLockElement === this._lockTarget;
+      if (this.pointerLocked) {
+        this._lockAcquiredAt = performance.now();
+        this._mouseDeltaX = 0;
+        this._mouseDeltaY = 0;
+      }
       if (!this.pointerLocked) this.buttons.clear();
     });
   }
@@ -89,15 +101,20 @@ export class Input {
   // Pilotage libre (mission 4) : Z avance / S recule (accélération), Q/D
   // roulis + déplacement latéral. Indépendants de moveX/moveY (vol sur
   // rail) pour que Z/S signifient "avancer/reculer" et non "piquer/cabrer".
+  // `code` reste bien la position physique de la touche (comme le
+  // physical_keycode de Godot) — mais AZERTY et QWERTY intervertissent les
+  // touches Z/W et Q/A, donc il faut lister les deux codes possibles, comme
+  // moveX/moveY le font déjà plus haut. Sans ça, la touche "Z" d'un clavier
+  // AZERTY (qui envoie le code 'KeyW') ne déclenchait rien.
   get throttle() {
-    let v = (this.isDown('KeyZ') ? 1 : 0) - (this.isDown('KeyS') ? 1 : 0);
+    let v = (this.isDown('KeyZ', 'KeyW') ? 1 : 0) - (this.isDown('KeyS') ? 1 : 0);
     const gp = this.gamepad;
     if (gp) v -= deadzone(gp.axes[1]);
     return clamp(v);
   }
 
   get roll() {
-    let v = (this.isDown('KeyD') ? 1 : 0) - (this.isDown('KeyQ') ? 1 : 0);
+    let v = (this.isDown('KeyD') ? 1 : 0) - (this.isDown('KeyQ', 'KeyA') ? 1 : 0);
     const gp = this.gamepad;
     if (gp) v += deadzone(gp.axes[0]);
     return clamp(v);

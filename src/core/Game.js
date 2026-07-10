@@ -248,11 +248,15 @@ export class Game {
       depthTest: false,
       side: THREE.DoubleSide,
     });
+    // Le losange (rotation Z 45°) est ré-appliqué chaque frame par-dessus
+    // l'orientation caméra (voir updateAimTarget) : sans ça le réticule est
+    // un plan figé dans l'espace monde, vu de tranche (fin trait) dès que
+    // la caméra ne regarde plus dans son axe d'origine — visible surtout en
+    // mission 4 où la souris fait tourner librement la caméra.
+    this._reticleSpin = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 0, 1), Math.PI / 4);
     const near = new THREE.Mesh(new THREE.RingGeometry(1.7, 2.0, 4), mat);
-    near.rotation.z = Math.PI / 4;
     near.renderOrder = 10;
     const far = new THREE.Mesh(new THREE.RingGeometry(0.9, 1.1, 4), mat);
-    far.rotation.z = Math.PI / 4;
     far.renderOrder = 10;
     this.aimNearReticle = near;
     this.aimFarReticle = far;
@@ -1108,7 +1112,15 @@ export class Game {
         sp.z - AIM_DEPTH
       );
     }
-    this._aimTarget.lerp(desired, 1 - Math.exp(-14 * dt));
+    if (this.missionId === 'mission04') {
+      // Pas de lissage ici : `desired` recalcule "plein axe caméra" à chaque
+      // frame, et la caméra elle-même tourne en continu (souris). Lisser
+      // par-dessus ne faisait que donner un réticule qui traîne/décale par
+      // rapport au vrai centre de l'écran au lieu d'y rester rigidement.
+      this._aimTarget.copy(desired);
+    } else {
+      this._aimTarget.lerp(desired, 1 - Math.exp(-14 * dt));
+    }
     if (this.missionId === 'mission04') {
       const screenDir = this._v.subVectors(this._aimTarget, this.camera.position).normalize();
       this.aimFarReticle.position.copy(this.camera.position).addScaledVector(screenDir, 140);
@@ -1118,6 +1130,11 @@ export class Game {
       this.aimFarReticle.position.copy(this._aimTarget);
       this.aimNearReticle.position.copy(sp).lerp(this._aimTarget, nearT);
     }
+    // Billboard : le réticule fait toujours face à la caméra, quel que soit
+    // l'angle de vue (essentiel en mission 4 où la souris tourne librement
+    // la caméra dans toutes les directions).
+    this.aimNearReticle.quaternion.copy(this.camera.quaternion).multiply(this._reticleSpin);
+    this.aimFarReticle.quaternion.copy(this.camera.quaternion).multiply(this._reticleSpin);
   }
 
   firePlayerLaser() {
