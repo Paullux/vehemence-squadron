@@ -31,9 +31,14 @@ const AIM_RANGE_Y = 17;
 const MISSION04_ORBIT_RADIUS = 620;
 const MISSION04_ORBIT_RADIUS_MIN = 420;
 const MISSION04_ORBIT_RADIUS_MAX = 820;
-const MISSION04_ORBIT_PITCH_LIMIT = 1.42;
-const MISSION04_MOUSE_LOOK_SENSITIVITY = 0.0026; // radians par pixel de mouvement souris
-const MISSION04_THROTTLE_SPEED = 130; // unités/s de variation de rayon (Z avance, S recule)
+const MISSION04_MOUSE_LOOK_SENSITIVITY = 0.001; // radians par pixel de mouvement souris
+const MISSION04_BASE_FORWARD_SPEED = 38; // avance lente au démarrage, même sans gaz
+const MISSION04_FORWARD_ACCELERATION = 125; // Z accélère progressivement
+const MISSION04_REVERSE_ACCELERATION = 96; // S freine puis permet de reculer
+const MISSION04_MAX_FORWARD_SPEED = 145;
+const MISSION04_MAX_REVERSE_SPEED = -62;
+const MISSION04_BOOST_BONUS_SPEED = 105;
+const MISSION04_ROLL_TURN_SPEED = 0.9; // Q/D changent le cap, le roulis visuel revient a plat
 const MISSION04_STRAFE_SPEED = 0.62; // rad/s de déplacement tangentiel (Q/D)
 const AUDIO_SETTINGS_KEY = 'vehemence.audio';
 const MISSION_SAVE_KEY = 'vehemence.missionSave';
@@ -91,7 +96,8 @@ export class Game {
     this.scene.add(this.camera);
 
     this.clock = new THREE.Clock();
-    this.input = new Input(this.renderer.domElement);
+    this.input = new Input(document.body);
+    this.input.lockAllowed = false;
     this.sound = new SoundManager();
     this.difficultyId = options.difficulty || 'pilot';
     this.difficulty = getDifficulty(options.difficulty);
@@ -145,6 +151,7 @@ export class Game {
     this.mission04OrbitAngle = -1.45;
     this.mission04OrbitPitch = 0.08;
     this.mission04OrbitRadius = MISSION04_ORBIT_RADIUS;
+    this.mission04ThrottleVelocity = MISSION04_BASE_FORWARD_SPEED;
     this.mission04Forward = new THREE.Vector3(0, 0, -1);
     this.mission04Right = new THREE.Vector3(1, 0, 0);
     this.mission04Up = new THREE.Vector3(0, 1, 0);
@@ -575,6 +582,7 @@ export class Game {
     this.enemyLasers.update(dt);
     this.enemyHeavyLasers.update(dt);
     this.alliedLasers.update(dt);
+    if (this.missionId === 'mission04') this.shieldSatelliteAssault.updateShieldBreakEffect(dt);
     if (this.missionId === 'mission01' && !this.bossStarted && !this.missionComplete) {
       this.score += this.targets.update(
         dt,
@@ -764,11 +772,14 @@ export class Game {
     this.hudPointerLockHint?.classList.add('hidden');
     document.body.classList.toggle('cursor-hidden', !paused && !this.gameOver && !this.missionComplete);
     if (paused) {
+      this.input.lockAllowed = false;
       document.exitPointerLock?.();
       this.sound.setLoop('heroEngine', { volume: 0 });
       this.input.keys.delete('Space');
       this.updateSaveStatus();
     } else {
+      this.input.lockAllowed = !this.launching && !this.gameOver && !this.missionComplete;
+      this.requestCombatPointerLock();
       this.clock.getDelta();
     }
   }
@@ -846,6 +857,7 @@ export class Game {
     this.mission04OrbitAngle = -1.45;
     this.mission04OrbitPitch = 0.08;
     this.mission04OrbitRadius = MISSION04_ORBIT_RADIUS;
+    this.mission04ThrottleVelocity = MISSION04_BASE_FORWARD_SPEED;
     this.mission04ScreenOffset.set(0, 0);
     this.mission04SteeringActive = false;
     this.mission04HasFlightPose = false;
@@ -854,11 +866,10 @@ export class Game {
   }
 
   // Pilotage libre mission 4 : la souris vise/pilote (comme un manche —
-  // là où tu regardes, tu voles), Z/S avancent/reculent (rapprochent ou
-  // éloignent du bouclier), Q/D font rouler le vaisseau et le déplacent
-  // latéralement. Le vaisseau reste positionné sur une coque sphérique
-  // autour du bouclier (rayon variable) pour ne pas casser le ciblage des
-  // satellites, qui suppose une distance raisonnable au centre.
+  // là où tu regardes, tu voles), Z/S accélèrent/freinent sur l'axe courant
+  // du vaisseau, Q/D font rouler le vaisseau et le déplacent latéralement.
+  // La distance à la planète est seulement bornée pour garder les satellites
+  // jouables ; elle ne pilote plus directement l'avancée du vaisseau.
   updateMission04Flight(dt) {
     const center = this.shieldSatelliteAssault.center;
     this._prevShipPos.copy(this.ship.group.position);
@@ -866,29 +877,32 @@ export class Game {
     const boost = this.input.boost ? 1 : 0;
     const { x: mouseDX, y: mouseDY } = this.input.consumeMouseDelta();
     const throttleInput = this.input.throttle; // Z = +1 (avance), S = -1 (recule)
-    const rollInput = this.input.roll; // D = +1 (droite), Q = -1 (gauche)
+    const rollInput = -this.input.roll; // mission 4 inverse Q/D pour le roulis et le cap
     const steeringActive =
       Math.abs(mouseDX) + Math.abs(mouseDY) > 0.01 ||
       Math.abs(throttleInput) > 0.01 ||
       Math.abs(rollInput) > 0.01;
-    this.mission04SteeringActive = steeringActive;
 
     // Souris : cap et tangage du vaisseau, sans butée (contrairement au
     // réticule borné du vol sur rail).
     this.mission04OrbitAngle -= mouseDX * MISSION04_MOUSE_LOOK_SENSITIVITY;
-    this.mission04OrbitPitch = THREE.MathUtils.clamp(
-      this.mission04OrbitPitch - mouseDY * MISSION04_MOUSE_LOOK_SENSITIVITY,
-      -MISSION04_ORBIT_PITCH_LIMIT,
-      MISSION04_ORBIT_PITCH_LIMIT
+    this.mission04OrbitPitch += mouseDY * MISSION04_MOUSE_LOOK_SENSITIVITY;
+    // Q/D : roulis visuel + cap persistant + déplacement tangentiel.
+    this.mission04OrbitAngle += rollInput * MISSION04_ROLL_TURN_SPEED * dt;
+    if (throttleInput > 0.01) {
+      this.mission04ThrottleVelocity += throttleInput * MISSION04_FORWARD_ACCELERATION * dt;
+    } else if (throttleInput < -0.01) {
+      this.mission04ThrottleVelocity += throttleInput * MISSION04_REVERSE_ACCELERATION * dt;
+    } else if (this.mission04ThrottleVelocity >= 0 && this.mission04ThrottleVelocity < MISSION04_BASE_FORWARD_SPEED) {
+      this.mission04ThrottleVelocity = MISSION04_BASE_FORWARD_SPEED;
+    }
+    this.mission04ThrottleVelocity = THREE.MathUtils.clamp(
+      this.mission04ThrottleVelocity,
+      MISSION04_MAX_REVERSE_SPEED,
+      MISSION04_MAX_FORWARD_SPEED
     );
-    // Q/D : roulis + déplacement tangentiel (strafe latéral)
-    this.mission04OrbitAngle += rollInput * MISSION04_STRAFE_SPEED * dt;
-    // Z/S : rapproche/éloigne du bouclier (avancer/reculer)
-    this.mission04OrbitRadius = THREE.MathUtils.clamp(
-      this.mission04OrbitRadius - throttleInput * MISSION04_THROTTLE_SPEED * dt,
-      MISSION04_ORBIT_RADIUS_MIN,
-      MISSION04_ORBIT_RADIUS_MAX
-    );
+    const forwardSpeed = this.mission04ThrottleVelocity + boost * MISSION04_BOOST_BONUS_SPEED;
+    this.mission04SteeringActive = steeringActive || Math.abs(forwardSpeed) > 0.01;
 
     this.mission04ScreenOffset.x = THREE.MathUtils.clamp(
       this.mission04ScreenOffset.x + rollInput * 0.34 * dt,
@@ -896,7 +910,7 @@ export class Game {
       0.48
     );
     this.mission04ScreenOffset.y = THREE.MathUtils.clamp(
-      this.mission04ScreenOffset.y - mouseDY * 0.0016,
+      this.mission04ScreenOffset.y + mouseDY * 0.0016,
       -0.34,
       0.34
     );
@@ -904,26 +918,51 @@ export class Game {
     const a = this.mission04OrbitAngle;
     const p = this.mission04OrbitPitch;
     const cosPitch = Math.cos(p);
-    const radial = this._v.set(Math.cos(a) * cosPitch, Math.sin(p), Math.sin(a) * cosPitch).normalize();
+    const lookRadial = this._v.set(Math.cos(a) * cosPitch, Math.sin(p), Math.sin(a) * cosPitch).normalize();
     const tangent = new THREE.Vector3(-Math.sin(a), 0, Math.cos(a)).normalize();
 
-    this.ship.group.position
-      .copy(center)
-      .addScaledVector(radial, this.mission04OrbitRadius);
-    if (steeringActive || !this.mission04HasFlightPose) {
-      this.mission04Forward.copy(radial).multiplyScalar(-1)
-        .addScaledVector(tangent, rollInput * 0.22)
-        .normalize();
-      this.mission04Right.copy(tangent);
-      this.mission04Up.crossVectors(this.mission04Right, this.mission04Forward).normalize();
-      this.mission04Rear.copy(this.mission04Forward).negate();
+    if (!this.mission04HasFlightPose) {
+      this.ship.group.position
+        .copy(center)
+        .addScaledVector(lookRadial, this.mission04OrbitRadius);
       this.mission04HasFlightPose = true;
+    }
+    this.mission04Forward.copy(lookRadial).multiplyScalar(-1).normalize();
+    this.mission04Right.copy(tangent);
+    this.mission04Up.crossVectors(this.mission04Right, this.mission04Forward).normalize();
+    this.mission04Rear.copy(this.mission04Forward).negate();
+
+    this.ship.group.position
+      .addScaledVector(this.mission04Forward, forwardSpeed * dt)
+      .addScaledVector(this.mission04Right, rollInput * MISSION04_STRAFE_SPEED * this.mission04OrbitRadius * dt);
+    const radialFromCenter = new THREE.Vector3().subVectors(this.ship.group.position, center);
+    const distanceFromCenter = radialFromCenter.length();
+    if (distanceFromCenter > 0.001) {
+      const clampedDistance = THREE.MathUtils.clamp(
+        distanceFromCenter,
+        MISSION04_ORBIT_RADIUS_MIN,
+        MISSION04_ORBIT_RADIUS_MAX
+      );
+      if (clampedDistance !== distanceFromCenter) {
+        radialFromCenter.multiplyScalar(clampedDistance / distanceFromCenter);
+        this.ship.group.position.copy(center).add(radialFromCenter);
+        const pushingInward = clampedDistance === MISSION04_ORBIT_RADIUS_MIN && this.mission04Forward.dot(radialFromCenter) < 0;
+        const pushingOutward = clampedDistance === MISSION04_ORBIT_RADIUS_MAX && this.mission04Forward.dot(radialFromCenter) > 0;
+        if (pushingInward || pushingOutward) this.mission04ThrottleVelocity = Math.min(this.mission04ThrottleVelocity, MISSION04_BASE_FORWARD_SPEED);
+      }
+      this.mission04OrbitRadius = clampedDistance;
     }
     this.ship.group.lookAt(this.ship.group.position.clone().add(this.mission04Forward));
     this.ship.mesh.rotation.z = -rollInput * 0.82;
-    this.ship.mesh.rotation.x = THREE.MathUtils.clamp(-mouseDY * 0.012, -0.28, 0.28);
-    this.ship.forwardSpeed = 62 + boost * 95 + Math.max(0, throttleInput) * 90 + Math.abs(rollInput) * 30;
-    this.ship.boostAmount = boost ? 1 : 0.22 + Math.max(0, throttleInput) * 0.4 + Math.abs(rollInput) * 0.18;
+    this.ship.mesh.rotation.x = THREE.MathUtils.clamp(mouseDY * 0.012, -0.28, 0.28);
+    this.ship.forwardSpeed = forwardSpeed + Math.abs(rollInput) * 30;
+    const throttleVisual = THREE.MathUtils.clamp(
+      (Math.max(0, this.mission04ThrottleVelocity) - MISSION04_BASE_FORWARD_SPEED) /
+        (MISSION04_MAX_FORWARD_SPEED - MISSION04_BASE_FORWARD_SPEED),
+      0,
+      1
+    );
+    this.ship.boostAmount = boost ? 1 : 0.22 + throttleVisual * 0.4 + Math.abs(rollInput) * 0.18;
     this.ship.velocity.set(
       (this.ship.group.position.x - this._prevShipPos.x) / Math.max(dt, 0.001),
       (this.ship.group.position.y - this._prevShipPos.y) / Math.max(dt, 0.001)
@@ -1072,6 +1111,20 @@ export class Game {
     this.camera.fov = BASE_FOV;
     this.camera.updateProjectionMatrix();
     this.updateAimTarget(1);
+    this.input.lockAllowed = true;
+    this.input.consumeMouseDelta();
+    this.requestCombatPointerLock();
+  }
+
+  requestCombatPointerLock() {
+    if (!document.hasFocus?.()) return;
+    if (this.input.pointerLocked || document.pointerLockElement) return;
+    try {
+      const lock = document.body.requestPointerLock?.();
+      lock?.catch?.(() => {});
+    } catch {
+      // Le navigateur peut refuser hors geste utilisateur : le clic manuel reste disponible.
+    }
   }
 
   setCombatVisible(visible) {
@@ -1254,6 +1307,7 @@ export class Game {
   completeMission() {
     if (this.missionComplete) return;
     this.missionComplete = true;
+    this.input.lockAllowed = false;
     this.hudBoss.classList.add('hidden');
     if (this.mission04CameraSquadron) this.mission04CameraSquadron.visible = false;
     if (this.missionId === 'mission02') {
@@ -1466,6 +1520,7 @@ export class Game {
 
   die() {
     this.gameOver = true;
+    this.input.lockAllowed = false;
     this.setPaused(false);
     const vehemenceLost = this.missionId === 'mission03' && this.vehemenceDefense.defeated;
     if (this.hudGameOverTitle) this.hudGameOverTitle.textContent = vehemenceLost ? 'VEHEMENCE DETRUIT' : 'GAME OVER';

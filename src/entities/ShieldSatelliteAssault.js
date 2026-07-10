@@ -15,6 +15,8 @@ const SHIELD_RADIUS = 270;
 const PLANET_RADIUS = 190;
 const SATELLITE_HP = 6;
 const SATELLITE_HIT_RADIUS = 34;
+const SHIELD_BREAK_SEGMENTS = 260;
+const SHIELD_BREAK_LIFETIME = 3.2;
 const PLANET_TEXTURES = {
   albedo: '/textures/planets/red_planete/planet_albedo.png',
   normal: '/textures/planets/red_planete/planet_normal.png',
@@ -114,6 +116,7 @@ export class ShieldSatelliteAssault {
 
     this.buildPlanetAndShield();
     this.buildSatellites();
+    this.buildShieldBreakEffect();
     this.loadSatelliteModel();
   }
 
@@ -161,6 +164,25 @@ export class ShieldSatelliteAssault {
     const redKey = new THREE.PointLight(0xff2a12, 420, 780, 1.35);
     redKey.position.set(0, 120, 180);
     this.group.add(redKey);
+  }
+
+  buildShieldBreakEffect() {
+    this.breakPositions = new Float32Array(SHIELD_BREAK_SEGMENTS * 2 * 3);
+    this.breakVelocities = new Float32Array(SHIELD_BREAK_SEGMENTS * 2 * 3);
+    this.breakGeo = new THREE.BufferGeometry();
+    this.breakGeo.setAttribute('position', new THREE.BufferAttribute(this.breakPositions, 3));
+    this.breakMat = new THREE.LineBasicMaterial({
+      color: 0xff2608,
+      transparent: true,
+      opacity: 0,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    });
+    this.breakLines = new THREE.LineSegments(this.breakGeo, this.breakMat);
+    this.breakLines.frustumCulled = false;
+    this.breakLines.visible = false;
+    this.group.add(this.breakLines);
+    this.breakEffectLife = 0;
   }
 
   buildSatellites() {
@@ -216,8 +238,12 @@ export class ShieldSatelliteAssault {
     this.center.set(0, -18, shipZ - 430);
     this.group.position.copy(this.center);
     this.group.visible = true;
+    this.breakEffectLife = 0;
+    this.breakLines.visible = false;
+    this.breakMat.opacity = 0;
     this.shieldMaterial.uniforms.breakCount.value = 0;
     this.shieldMaterial.uniforms.strength.value = 1;
+    this.shield.visible = true;
     for (const sat of this.satellites) {
       sat.hp = SATELLITE_HP;
       sat.destroyed = false;
@@ -235,14 +261,68 @@ export class ShieldSatelliteAssault {
     this.shield.rotation.y -= dt * 0.025;
     this.shieldMaterial.uniforms.time.value = this.time;
     this.shieldMaterial.uniforms.strength.value = Math.max(0, 1 - this.destroyedCount / SATELLITE_COUNT);
+    this.updateShieldBreakEffect(dt);
     this.updateSatellitePositions(dt);
     if (this.destroyedCount >= SATELLITE_COUNT) {
+      this.spawnShieldBreakEffect();
       this.complete = true;
       this.active = false;
       this.shield.visible = false;
       return 2400;
     }
     return 0;
+  }
+
+  spawnShieldBreakEffect() {
+    this.breakEffectLife = SHIELD_BREAK_LIFETIME;
+    const p = new THREE.Vector3();
+    const n = new THREE.Vector3();
+    const tangent = new THREE.Vector3();
+    const bitangent = new THREE.Vector3();
+    const jitter = new THREE.Vector3();
+    for (let i = 0; i < SHIELD_BREAK_SEGMENTS; i++) {
+      n.randomDirection();
+      p.copy(n).multiplyScalar(SHIELD_RADIUS + rand(-1.5, 1.5));
+      tangent.crossVectors(n, _worldUp);
+      if (tangent.lengthSq() < 0.01) tangent.set(1, 0, 0);
+      tangent.normalize();
+      bitangent.crossVectors(n, tangent).normalize();
+      const along = Math.random() < 0.5 ? tangent : bitangent;
+      const length = rand(5, 18);
+      const base = i * 6;
+      this.breakPositions[base] = p.x - along.x * length;
+      this.breakPositions[base + 1] = p.y - along.y * length;
+      this.breakPositions[base + 2] = p.z - along.z * length;
+      this.breakPositions[base + 3] = p.x + along.x * length;
+      this.breakPositions[base + 4] = p.y + along.y * length;
+      this.breakPositions[base + 5] = p.z + along.z * length;
+      jitter.copy(tangent).multiplyScalar(rand(-10, 10)).addScaledVector(bitangent, rand(-10, 10));
+      const speed = rand(55, 145);
+      const spin = rand(-16, 16);
+      for (let j = 0; j < 2; j++) {
+        const o = base + j * 3;
+        this.breakVelocities[o] = n.x * speed + jitter.x + along.x * spin * (j === 0 ? -1 : 1);
+        this.breakVelocities[o + 1] = n.y * speed + jitter.y + along.y * spin * (j === 0 ? -1 : 1);
+        this.breakVelocities[o + 2] = n.z * speed + jitter.z + along.z * spin * (j === 0 ? -1 : 1);
+      }
+    }
+    this.breakGeo.attributes.position.needsUpdate = true;
+    this.breakMat.opacity = 0.95;
+    this.breakLines.visible = true;
+  }
+
+  updateShieldBreakEffect(dt) {
+    if (this.breakEffectLife <= 0) return;
+    this.breakEffectLife = Math.max(0, this.breakEffectLife - dt);
+    const damp = Math.max(0, 1 - dt * 0.26);
+    for (let i = 0; i < this.breakPositions.length; i++) {
+      this.breakVelocities[i] *= damp;
+      this.breakPositions[i] += this.breakVelocities[i] * dt;
+    }
+    this.breakGeo.attributes.position.needsUpdate = true;
+    const progress = 1 - this.breakEffectLife / SHIELD_BREAK_LIFETIME;
+    this.breakMat.opacity = Math.max(0, (1 - progress) * 0.95);
+    if (this.breakEffectLife <= 0) this.breakLines.visible = false;
   }
 
   updateSatellitePositions(dt) {

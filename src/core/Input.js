@@ -17,15 +17,16 @@ export class Input {
     this.keys = new Set();
     this.pointer = { x: 0, y: 0 };
     this.buttons = new Set();
-    this.pointerLocked = false;
     this._lockTarget = target instanceof Element ? target : document.body;
+    this.pointerLocked = document.pointerLockElement === this._lockTarget;
+    this.lockAllowed = true;
     // Deltas souris bruts (non bornés), pour le pilotage libre façon FPS
     // (mission 4) : contrairement à `pointer` (borné -1..1, réticule sur
     // rail), le cap doit pouvoir tourner sans butée. Consommés une fois par
     // frame via consumeMouseDelta() puis remis à zéro.
     this._mouseDeltaX = 0;
     this._mouseDeltaY = 0;
-    this._lockAcquiredAt = 0;
+    this._lockAcquiredAt = this.pointerLocked ? performance.now() : 0;
 
     addEventListener('keydown', (e) => {
       if (e.code === 'Space') e.preventDefault();
@@ -49,6 +50,7 @@ export class Input {
       this._mouseDeltaY += e.movementY;
     });
     target.addEventListener('mousedown', (e) => {
+      if (!this.lockAllowed) return;
       if (!this.pointerLocked) {
         this._lockTarget.requestPointerLock?.();
         return; // le premier clic ne fait que capturer la souris, pas tirer

@@ -35,6 +35,16 @@ const MIN_BRIEF_DURATION = 30000;
 let selectedMission = 'mission01';
 let selectedDifficulty = 'pilot';
 
+function requestInitialPointerLock() {
+  if (document.pointerLockElement) return;
+  try {
+    const lock = document.body.requestPointerLock?.();
+    lock?.catch?.(() => {});
+  } catch {
+    // Le clic manuel sur le jeu restera disponible si le navigateur refuse.
+  }
+}
+
 const MISSION_BRIEFS = {
   mission01: {
     kicker: 'BRIEFING DE MISSION // ROUTE KHAROS-3',
@@ -62,7 +72,7 @@ const MISSION_BRIEFS = {
     title: 'BRISER LE BOUCLIER PLANETAIRE',
     copy:
       "Aquila entre dans le système de l'Hégémonie. La planète rouge est protégée par des satellites qui maintiennent un champ de force orbital.",
-    objective: 'Mode libre orbital : contourner la planète, détruire les satellites-boucliers, repousser les chasseurs ennemis.',
+    objective: 'Mode libre orbital : contourner la planète, détruire les satellites-boucliers.',
   },
 };
 
@@ -168,8 +178,14 @@ mission03.addEventListener('click', () => setMission('mission03'));
 mission04.addEventListener('click', () => setMission('mission04'));
 difficultyPilot.addEventListener('click', () => setDifficulty('pilot'));
 difficultyCadet.addEventListener('click', () => setDifficulty('cadet'));
-introStart.addEventListener('click', () => startGame());
-introSkip.addEventListener('click', () => startGame());
+introStart.addEventListener('click', () => {
+  requestInitialPointerLock();
+  startGame();
+});
+introSkip.addEventListener('click', () => {
+  requestInitialPointerLock();
+  startGame();
+});
 introVideo.addEventListener('ended', () => startGame());
 introVideo.addEventListener('error', () => startGame());
 
