@@ -133,7 +133,7 @@ export class Wingman {
         if (Math.abs(dx) < 30 && Math.abs(dy) < 20) {
           _dir.set(dx, dy, -dz);
           _origin.copy(p).addScaledVector(_dir.clone().normalize(), 5);
-          lasers.fire(_origin, _dir, 420 + player.forwardSpeed);
+          lasers.fire(_origin, _dir, 420 + player.forwardSpeed, 1.4, tuning.damageMultiplier ?? 1);
           this.fireCooldown = 0.9 + Math.random() * 1.3;
           fired = true;
           break;

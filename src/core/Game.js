@@ -29,7 +29,12 @@ const AIM_NEAR_DEPTH = 35;
 const AIM_RANGE_X = 30;
 const AIM_RANGE_Y = 17;
 const MISSION04_ORBIT_RADIUS = 620;
+const MISSION04_ORBIT_RADIUS_MIN = 420;
+const MISSION04_ORBIT_RADIUS_MAX = 820;
 const MISSION04_ORBIT_PITCH_LIMIT = 1.42;
+const MISSION04_MOUSE_LOOK_SENSITIVITY = 0.0026; // radians par pixel de mouvement souris
+const MISSION04_THROTTLE_SPEED = 130; // unités/s de variation de rayon (Z avance, S recule)
+const MISSION04_STRAFE_SPEED = 0.62; // rad/s de déplacement tangentiel (Q/D)
 const AUDIO_SETTINGS_KEY = 'vehemence.audio';
 const MISSION_SAVE_KEY = 'vehemence.missionSave';
 const DEBRIEF_DELAY = 2500;
@@ -151,6 +156,13 @@ export class Game {
     this._prevShipPos = new THREE.Vector3();
 
     this.hudScore = document.getElementById('score');
+    this.hudHint = document.getElementById('hint');
+    if (this.hudHint && this.missionId === 'mission04') {
+      // Contrôles spécifiques au vol libre — voir updateMission04Flight().
+      this.hudHint.textContent =
+        'Souris : cap du vaisseau — Z avancer / S reculer — Q/D rouler + latéral — ' +
+        'clic gauche / RT / A : tirer — clic droit / MAJ / LT / LB : boost — ESPACE : pause';
+    }
     this.hudDifficulty = document.getElementById('difficulty-label');
     this.hudSpeed = document.getElementById('speed');
     this.hudHpBar = document.getElementById('hpbar');
@@ -250,16 +262,16 @@ export class Game {
 
   buildMissionLighting() {
     if (this.missionId === 'mission04') {
+      // Pas ajoutés à la scène tout de suite : cet éclairage rouge très
+      // marqué (thème Hégémonie) n'a rien à faire pendant le décollage
+      // depuis le Véhémence, encore dans un espace neutre. Activé dans
+      // finishLaunch() une fois la cinématique de sortie terminée.
       const redFill = new THREE.HemisphereLight(0xff6644, 0x150008, 0.76);
-      this.scene.add(redFill);
-
       const hegemonyKey = new THREE.DirectionalLight(0xff331c, 1.75);
       hegemonyKey.position.set(0.65, 0.22, 0.72).normalize();
-      this.scene.add(hegemonyKey);
-
       const shieldGlow = new THREE.PointLight(0xff1a08, 160, 620, 1.45);
       shieldGlow.position.set(0, -20, -430);
-      this.scene.add(shieldGlow);
+      this.mission04Lights = [redFill, hegemonyKey, shieldGlow];
 
       return;
     }
@@ -550,6 +562,7 @@ export class Game {
       } else {
         for (const w of this.wingmen) w.update(dt, this.ship, this.targets, this.lasers, this.sound, {
           regenRateMultiplier: this.difficulty.regenRateMultiplier,
+          damageMultiplier: this.difficulty.playerDamageMultiplier,
         });
       }
     }
@@ -717,9 +730,9 @@ export class Game {
   loadAudioSettings() {
     try {
       const saved = JSON.parse(localStorage.getItem(AUDIO_SETTINGS_KEY));
-      const settings = { ...DEFAULT_AUDIO_SETTINGS, ...saved };
-      settings.voice = Math.max(DEFAULT_AUDIO_SETTINGS.voice, settings.voice);
-      return settings;
+      // Pas de plancher forcé sur `voice` : ça empêchait de baisser durablement
+      // le curseur, remis à 220% à chaque rechargement de mission.
+      return { ...DEFAULT_AUDIO_SETTINGS, ...saved };
     } catch {
       return { ...DEFAULT_AUDIO_SETTINGS };
     }
@@ -836,50 +849,66 @@ export class Game {
     this.sound.playMusic('generalBoss', { volume: 0.52, fade: 1.2 });
   }
 
+  // Pilotage libre mission 4 : la souris vise/pilote (comme un manche —
+  // là où tu regardes, tu voles), Z/S avancent/reculent (rapprochent ou
+  // éloignent du bouclier), Q/D font rouler le vaisseau et le déplacent
+  // latéralement. Le vaisseau reste positionné sur une coque sphérique
+  // autour du bouclier (rayon variable) pour ne pas casser le ciblage des
+  // satellites, qui suppose une distance raisonnable au centre.
   updateMission04Flight(dt) {
     const center = this.shieldSatelliteAssault.center;
     this._prevShipPos.copy(this.ship.group.position);
 
     const boost = this.input.boost ? 1 : 0;
-    const orbitSpeed = (boost ? 1.18 : 0.78);
-    const steeringActive = Math.abs(this.input.moveX) + Math.abs(this.input.moveY) > 0.01;
+    const { x: mouseDX, y: mouseDY } = this.input.consumeMouseDelta();
+    const throttleInput = this.input.throttle; // Z = +1 (avance), S = -1 (recule)
+    const rollInput = this.input.roll; // D = +1 (droite), Q = -1 (gauche)
+    const steeringActive =
+      Math.abs(mouseDX) + Math.abs(mouseDY) > 0.01 ||
+      Math.abs(throttleInput) > 0.01 ||
+      Math.abs(rollInput) > 0.01;
     this.mission04SteeringActive = steeringActive;
-    this.mission04OrbitAngle += this.input.moveX * orbitSpeed * dt;
+
+    // Souris : cap et tangage du vaisseau, sans butée (contrairement au
+    // réticule borné du vol sur rail).
+    this.mission04OrbitAngle -= mouseDX * MISSION04_MOUSE_LOOK_SENSITIVITY;
     this.mission04OrbitPitch = THREE.MathUtils.clamp(
-      this.mission04OrbitPitch + this.input.moveY * orbitSpeed * 0.82 * dt,
+      this.mission04OrbitPitch - mouseDY * MISSION04_MOUSE_LOOK_SENSITIVITY,
       -MISSION04_ORBIT_PITCH_LIMIT,
       MISSION04_ORBIT_PITCH_LIMIT
     );
+    // Q/D : roulis + déplacement tangentiel (strafe latéral)
+    this.mission04OrbitAngle += rollInput * MISSION04_STRAFE_SPEED * dt;
+    // Z/S : rapproche/éloigne du bouclier (avancer/reculer)
+    this.mission04OrbitRadius = THREE.MathUtils.clamp(
+      this.mission04OrbitRadius - throttleInput * MISSION04_THROTTLE_SPEED * dt,
+      MISSION04_ORBIT_RADIUS_MIN,
+      MISSION04_ORBIT_RADIUS_MAX
+    );
+
     this.mission04ScreenOffset.x = THREE.MathUtils.clamp(
-      this.mission04ScreenOffset.x + this.input.moveX * 0.34 * dt,
+      this.mission04ScreenOffset.x + rollInput * 0.34 * dt,
       -0.48,
       0.48
     );
     this.mission04ScreenOffset.y = THREE.MathUtils.clamp(
-      this.mission04ScreenOffset.y + this.input.moveY * 0.28 * dt,
+      this.mission04ScreenOffset.y - mouseDY * 0.0016,
       -0.34,
       0.34
     );
-    this.mission04OrbitRadius = MISSION04_ORBIT_RADIUS;
 
     const a = this.mission04OrbitAngle;
     const p = this.mission04OrbitPitch;
     const cosPitch = Math.cos(p);
     const radial = this._v.set(Math.cos(a) * cosPitch, Math.sin(p), Math.sin(a) * cosPitch).normalize();
     const tangent = new THREE.Vector3(-Math.sin(a), 0, Math.cos(a)).normalize();
-    const vertical = new THREE.Vector3(
-      -Math.cos(a) * Math.sin(p),
-      Math.cos(p),
-      -Math.sin(a) * Math.sin(p)
-    ).normalize();
 
     this.ship.group.position
       .copy(center)
       .addScaledVector(radial, this.mission04OrbitRadius);
     if (steeringActive || !this.mission04HasFlightPose) {
       this.mission04Forward.copy(radial).multiplyScalar(-1)
-        .addScaledVector(tangent, this.input.moveX * 0.22)
-        .addScaledVector(vertical, this.input.moveY * 0.18)
+        .addScaledVector(tangent, rollInput * 0.22)
         .normalize();
       this.mission04Right.copy(tangent);
       this.mission04Up.crossVectors(this.mission04Right, this.mission04Forward).normalize();
@@ -887,10 +916,10 @@ export class Game {
       this.mission04HasFlightPose = true;
     }
     this.ship.group.lookAt(this.ship.group.position.clone().add(this.mission04Forward));
-    this.ship.mesh.rotation.z = -this.input.moveX * 0.82;
-    this.ship.mesh.rotation.x = this.input.moveY * 0.38;
-    this.ship.forwardSpeed = 62 + boost * 95 + Math.abs(this.input.moveX) * 50 + Math.abs(this.input.moveY) * 42;
-    this.ship.boostAmount = boost ? 1 : 0.22 + Math.max(Math.abs(this.input.moveX), Math.abs(this.input.moveY)) * 0.22;
+    this.ship.mesh.rotation.z = -rollInput * 0.82;
+    this.ship.mesh.rotation.x = THREE.MathUtils.clamp(-mouseDY * 0.012, -0.28, 0.28);
+    this.ship.forwardSpeed = 62 + boost * 95 + Math.max(0, throttleInput) * 90 + Math.abs(rollInput) * 30;
+    this.ship.boostAmount = boost ? 1 : 0.22 + Math.max(0, throttleInput) * 0.4 + Math.abs(rollInput) * 0.18;
     this.ship.velocity.set(
       (this.ship.group.position.x - this._prevShipPos.x) / Math.max(dt, 0.001),
       (this.ship.group.position.y - this._prevShipPos.y) / Math.max(dt, 0.001)
@@ -928,6 +957,7 @@ export class Game {
       if (!wingman.alive) continue;
       wingman.update(dt, this.ship, this.targets, this.lasers, this.sound, {
         regenRateMultiplier: this.difficulty.regenRateMultiplier,
+        damageMultiplier: this.difficulty.playerDamageMultiplier,
       });
       const offset = wingman.offset;
       wingman.group.position.copy(this.ship.group.position)
@@ -1007,6 +1037,11 @@ export class Game {
     this.aimGroup.visible = true;
     this.setCombatVisible(true);
     this.setEnvironmentVisible(true);
+    // L'éclairage rouge de l'Hégémonie (mission 4) n'entre en scène qu'ici,
+    // une fois le décollage terminé — voir buildMissionLighting().
+    if (this.mission04Lights) {
+      for (const light of this.mission04Lights) this.scene.add(light);
+    }
 
     this.ship.group.position.set(0, 0, 0);
     this.ship.group.scale.copy(this.launchActors[0].originalScale);
@@ -1059,7 +1094,9 @@ export class Game {
     const sp = this.ship.group.position;
     let desired;
     if (this.missionId === 'mission04') {
-      this._aimScreenPoint.set(this.input.aimX, this.input.aimY, 0.58).unproject(this.camera);
+      // La souris pilote maintenant le cap du vaisseau (updateMission04Flight) :
+      // le réticule reste fixe au centre de l'écran, plein axe caméra.
+      this._aimScreenPoint.set(0, 0, 0.58).unproject(this.camera);
       desired = this._v.subVectors(this._aimScreenPoint, this.camera.position)
         .normalize()
         .multiplyScalar(900)
@@ -1126,7 +1163,7 @@ export class Game {
         const dy = laser.position.y - enemy.position.y;
         if (dz < zWindow && dx * dx + dy * dy < rLatSq) {
           hit = true;
-          laserDamage = laser.userData.damage || 1;
+          laserDamage = laser.userData.damage ?? 1;
           this.lasers.release(laser);
           this.sound.armorHit(enemy.position);
         }
@@ -1161,7 +1198,7 @@ export class Game {
           if (laser.position.distanceToSquared(actor.position) < 12) {
             pool.release(laser);
             this.sound.shieldHit();
-            actor.damage((laser.userData.damage || 12) * this.difficulty.receivedDamageMultiplier);
+            actor.damage((laser.userData.damage ?? 12) * this.difficulty.receivedDamageMultiplier);
             return; // un bolt ne touche qu'un seul appareil
           }
         }
@@ -1220,6 +1257,7 @@ export class Game {
     this.aimGroup.visible = false;
     this.sound.playMusic('victory', { volume: 0.58, fade: 1.5 });
     document.body.classList.remove('cursor-hidden');
+    document.exitPointerLock?.(); // sinon le curseur reste figé sur l'écran de debrief
     // Laisse le temps de lire le score avant d'enchaîner sur le debrief
     setTimeout(() => this.startDebrief(), DEBRIEF_DELAY);
   }
@@ -1426,8 +1464,10 @@ export class Game {
     this.ship.group.visible = false;
     if (this.mission04CameraSquadron) this.mission04CameraSquadron.visible = false;
     this.aimGroup.visible = false;
+    this.hudBoss.classList.add('hidden');
     this.hudGameOver.classList.remove('hidden');
     document.body.classList.remove('cursor-hidden');
+    document.exitPointerLock?.(); // sinon le curseur reste figé sur l'écran de game over
   }
 
   updateCamera(dt) {

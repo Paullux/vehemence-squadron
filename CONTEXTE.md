@@ -93,6 +93,17 @@ n'est pas engagée. Une fois capturée, les deltas relatifs (`movementX/Y`)
 pilotent le réticule en continu, clavier/manette restent indépendants du
 verrou.
 
+**Mission 4 / vol libre — schéma dédié** (`updateMission04Flight` dans
+`Game.js`, getters `throttle`/`roll`/`consumeMouseDelta()` dans `Input.js`) :
+la souris pilote le cap du vaisseau sans butée (là où tu regardes, tu voles —
+le réticule reste fixe au centre de l'écran), `Z` avance / `S` recule
+(rapproche/éloigne du bouclier, rayon borné), `Q`/`D` font rouler le vaisseau
+et le déplacent latéralement (tangentiel). Le tir part du vaisseau et vise le
+long de l'axe caméra→cible (`firePlayerLaser`, branche `mission04`). Ce schéma
+est indépendant de `moveX`/`moveY` (vol sur rail, inchangé). ⚠️ Non re-testé
+en jeu après la réécriture (environnement de preview indisponible ce
+tour-ci) — à valider manuellement.
+
 **Menu pause** : `Espace` ouvre un panneau en jeu avec réglages audio
 persistants (`localStorage`) et sauvegarde légère de mission (score, bouclier,
 temps, boss commencé/progression). Cette sauvegarde sert pour l'instant de
@@ -251,14 +262,19 @@ checkpoint informatif ; la reprise exacte d'un état 3D viendra avec la machine
   bataille près d'une planète rouge, d'une grande étoile rouge et de ses anneaux.
   C'est le niveau où le **mode libre/all-range** prend tout son sens : les rails et
   le recentrage automatique sont désactivés. Le joueur peut contourner librement la
-  planète pour atteindre tous les satellites-boucliers répartis autour d'elle :
-  `gauche/droite` change la longitude, `haut/bas` change la latitude, et relâcher
-  les commandes fige la position et la caméra dans la vue atteinte. Pour garder ce
-  premier mode libre lisible, l'Hégémonie n'envoie que des chasseurs dans cette
-  mission. Ils naissent sous le bouclier côté planète, ont une phase forcée de sortie
-  au-dessus du champ, puis passent en attaque sans collision-suicide avec Aquila.
-  Objectif : détruire les satellites qui génèrent le champ de force/bouclier
-  planétaire de l'Hégémonie.
+  planète pour atteindre tous les satellites-boucliers répartis autour d'elle,
+  toujours sur une coque sphérique (rayon variable) autour du bouclier. Pilotage
+  refondu (voir §5) : souris = cap, `Z`/`S` = avancer/reculer (rayon), `Q`/`D` =
+  rouler + latéral ; relâcher tous les contrôles fige la position et la caméra
+  dans la vue atteinte (propriété naturelle de l'accumulateur d'angle/rayon, pas
+  de logique de gel dédiée). Pour garder ce premier mode libre lisible,
+  l'Hégémonie n'envoie que des chasseurs dans cette mission. Ils naissent sous le
+  bouclier côté planète, ont une phase forcée de sortie au-dessus du champ, puis
+  passent en attaque sans collision-suicide avec Aquila. Objectif : détruire les
+  satellites qui génèrent le champ de force/bouclier planétaire de l'Hégémonie.
+  L'éclairage rouge très marqué de l'Hégémonie (`buildMissionLighting`) n'est
+  ajouté à la scène qu'à la fin du décollage (`finishLaunch`), pas avant : sinon
+  il teintait aussi la sortie du hangar, encore en espace neutre.
   Modèle runtime des satellites :
   `public/space_ships/ennemies/shield_satellites/base_basic_pbr.glb` avec
   `texture_emissive.png`. Références de génération Rodin conservées côté source :

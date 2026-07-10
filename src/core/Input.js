@@ -14,6 +14,12 @@ export class Input {
     this.buttons = new Set();
     this.pointerLocked = false;
     this._lockTarget = target instanceof Element ? target : document.body;
+    // Deltas souris bruts (non bornés), pour le pilotage libre façon FPS
+    // (mission 4) : contrairement à `pointer` (borné -1..1, réticule sur
+    // rail), le cap doit pouvoir tourner sans butée. Consommés une fois par
+    // frame via consumeMouseDelta() puis remis à zéro.
+    this._mouseDeltaX = 0;
+    this._mouseDeltaY = 0;
 
     addEventListener('keydown', (e) => {
       if (e.code === 'Space') e.preventDefault();
@@ -32,6 +38,8 @@ export class Input {
       if (!this.pointerLocked) return;
       this.pointer.x = clamp(this.pointer.x + e.movementX * MOUSE_SENSITIVITY);
       this.pointer.y = clamp(this.pointer.y - e.movementY * MOUSE_SENSITIVITY);
+      this._mouseDeltaX += e.movementX;
+      this._mouseDeltaY += e.movementY;
     });
     target.addEventListener('mousedown', (e) => {
       if (!this.pointerLocked) {
@@ -76,6 +84,32 @@ export class Input {
     const gp = this.gamepad;
     if (gp) v += deadzone(gp.axes[1]);
     return clamp(v);
+  }
+
+  // Pilotage libre (mission 4) : Z avance / S recule (accélération), Q/D
+  // roulis + déplacement latéral. Indépendants de moveX/moveY (vol sur
+  // rail) pour que Z/S signifient "avancer/reculer" et non "piquer/cabrer".
+  get throttle() {
+    let v = (this.isDown('KeyZ') ? 1 : 0) - (this.isDown('KeyS') ? 1 : 0);
+    const gp = this.gamepad;
+    if (gp) v -= deadzone(gp.axes[1]);
+    return clamp(v);
+  }
+
+  get roll() {
+    let v = (this.isDown('KeyD') ? 1 : 0) - (this.isDown('KeyQ') ? 1 : 0);
+    const gp = this.gamepad;
+    if (gp) v += deadzone(gp.axes[0]);
+    return clamp(v);
+  }
+
+  // Delta souris brut de la frame (non borné) — pilotage libre. À consommer
+  // une fois par frame : le buffer est vidé après lecture.
+  consumeMouseDelta() {
+    const d = { x: this._mouseDeltaX, y: this._mouseDeltaY };
+    this._mouseDeltaX = 0;
+    this._mouseDeltaY = 0;
+    return d;
   }
 
   get aimX() {
